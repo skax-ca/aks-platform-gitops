@@ -1,0 +1,66 @@
+# 플랫폼 AppProject — 계층 2(플랫폼 GitOps)의 가드레일
+#
+# 설계: aks-reference-infra의 .omc/plans/aks-platform-gitops-scaffold.md 1-2절
+#       (AWS 원본 skax-ca/eks-platform-gitops의 projects/platform.yaml 1:1 대응)
+# seed 순서 3단계 — 4·5단계(cluster Secret·root App)가 이 프로젝트를 참조하므로 반드시 먼저.
+#
+# ⚠️ ArgoCD의 `default` AppProject는 sourceRepos/destinations/clusterResourceWhitelist가
+#    전부 '*'인 완전 개방 상태다. 플랫폼 리소스는 이 전용 프로젝트에만 둔다.
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: platform
+  namespace: argocd
+spec:
+  description: 플랫폼팀 소유 계층 2 리소스 (클러스터 등록·addon·컨트롤러 설정)
+
+  # AppProject는 어느 ns의 Application이 자신을 참조할 수 있는지 이 필드로 명시한다.
+  # self-managed에서는 강제가 아니지만 **규약으로 argocd 하나에 고정**한다.
+  sourceNamespaces:
+    - argocd
+
+  # 계층 3(앱팀)으로의 seam — 플랫폼은 이 저장소에서만 배포한다.
+  # ⚠️ sourceRepos는 destinations·clusterResourceWhitelist와 별개의 제3 가드레일이다 —
+  #    Application의 source repoURL이 여기 없으면 InvalidSpecError로 sync 자체가 안 선다.
+  # addon을 추가할 때마다 그 chart repo를 여기 추가한다(addon마다 리뷰 지점).
+  sourceRepos:
+    # 이 저장소 — seed 매니페스트 + AGFC ApplicationLoadBalancer CR 로컬 차트
+    # (addons/alb-controller/loadbalancer).
+    - https://github.com/skax-ca/aks-platform-gitops.git
+    # ── ArgoCD 자기 관리 ──
+    # ArgoCD가 **자기 자신의 차트**를 읽는다. 이 줄이 없으면 bootstrap/argocd-app.yaml이
+    #    InvalidSpecError로 sync조차 서지 않는다.
+    - https://argoproj.github.io/argo-helm
+    # ── AGFC(ALB Controller) ──
+    # egress 확인 완료(canary, 2026-09-04): private cluster에서 이 호스트에 실제로 닿는다
+    # (aks-reference-infra .omc/plans/aks-platform-gitops-scaffold.md 5절 검증 단계 5번).
+    # ⚠️ OCI registry라 scheme을 쓰지 않는다(oci:// 접두사 없음, karpenter 규약과 동일 형태).
+    - mcr.microsoft.com/application-lb/charts
+
+  # 등록된 클러스터만 허용. 새 클러스터 등록 시 여기에도 추가한다.
+  destinations:
+    # self-managed ArgoCD는 자신이 도는 클러스터를 이 URL로 가리킨다.
+    - server: https://kubernetes.default.svc
+      namespace: '*'
+
+  # 클러스터 스코프 리소스는 **기본 차단**으로 시작해 addon마다 필요한 kind만 연다.
+  #
+  # 🔴 self-managed에서 이 목록의 무게가 관리형보다 **무겁다**. argo-cd chart 기본값이
+  #    createClusterRoles=true + clusterRoleRules.enabled=false라 application controller가
+  #    이미 cluster-admin이다 ⇒ apiserver 쪽에는 막는 층이 없고, **여기가 유일한 실질 가드레일**이다.
+  #
+  # ⚠️ 아래 목록은 추론이 아니라 **canary 실측**이다(2026-09-04, `helm template
+  #    alb-controller oci://mcr.microsoft.com/application-lb/charts/alb-controller
+  #    --version 1.11.4` 실행 결과와 정확히 일치, digest sha256:8163eec4...).
+  clusterResourceWhitelist:
+    - { group: "", kind: Namespace } # 차트가 azure-alb-system Namespace를 직접 렌더
+    - { group: rbac.authorization.k8s.io, kind: ClusterRole } # 컨트롤러 RBAC
+    - { group: rbac.authorization.k8s.io, kind: ClusterRoleBinding } # 컨트롤러 RBAC
+    # ⛔ CRD를 넣지 않는다 — Gateway API CRD는 컨트롤러가 런타임에 동적 생성한다
+    #    (installGatewayApiCRDs: true values, ArgoCD가 소유하지 않음 — AWS 원본 README가
+    #    Kyverno 동적 웹훅에서 경고한 것과 같은 함정. 3-1 검증이 유일한 판정 수단).
+
+  # namespace 스코프는 전면 허용 — 플랫폼 계층은 관리자 tier다.
+  namespaceResourceWhitelist:
+    - group: '*'
+      kind: '*'

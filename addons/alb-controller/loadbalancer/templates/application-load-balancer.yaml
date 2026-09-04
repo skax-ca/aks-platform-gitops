@@ -1,0 +1,20 @@
+{{- /* +argocd:skip-file-rendering — 파일 내용에는 남고 helm 렌더 출력에는 안 남는다 */ -}}
+# ApplicationLoadBalancer CR — Managed 배포 전략의 트리거
+#
+# ✅ 공식 API 스펙 문서(for-containers/api-specification-kubernetes)로 실측 확정
+#    (aks-reference-infra .omc/plans/aks-platform-gitops-scaffold.md 1-3절):
+#    spec.associations는 []string(subnet 리소스 ID 문자열 배열 그대로, .id 하위 필드 없음).
+#
+# 이 CR 적용이 실제 ALB(Application Gateway for Containers) ARM 리소스를 컨트롤러가
+#    동적으로 생성하는 트리거다 - Terraform은 이 리소스를 만들지 않는다(Managed 전략,
+#    ALBC 선례와 동형).
+#
+# ✅ namespace-scoped 확정(같은 문서, 예시가 metadata.namespace를 명시).
+apiVersion: alb.networking.azure.io/v1
+kind: ApplicationLoadBalancer
+metadata:
+  name: alb-demo-hub-krc-main
+  namespace: azure-alb-system
+spec:
+  associations:
+    - {{ .Values.subnetId }}
