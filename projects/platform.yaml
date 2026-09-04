@@ -56,9 +56,17 @@ spec:
     - { group: "", kind: Namespace } # 차트가 azure-alb-system Namespace를 직접 렌더
     - { group: rbac.authorization.k8s.io, kind: ClusterRole } # 컨트롤러 RBAC
     - { group: rbac.authorization.k8s.io, kind: ClusterRoleBinding } # 컨트롤러 RBAC
-    # ⛔ CRD를 넣지 않는다 — Gateway API CRD는 컨트롤러가 런타임에 동적 생성한다
+    # ⛔ Gateway API CRD는 여기 넣지 않는다 — 컨트롤러가 런타임에 동적 생성한다
     #    (installGatewayApiCRDs: true values, ArgoCD가 소유하지 않음 — AWS 원본 README가
     #    Kyverno 동적 웹훅에서 경고한 것과 같은 함정. 3-1 검증이 유일한 판정 수단).
+    # CustomResourceDefinition은 ArgoCD 자기관리(bootstrap/argocd-app.yaml, argo-cd 차트의
+    #    argoproj.io CRD 3종 applications/applicationsets/appprojects)를 흡수하는 데 필요하다
+    #    (2026-09-04, 실제 seed 5단계 실행 중 InvalidSpecError로 발견 - "resource
+    #    apiextensions.k8s.io:CustomResourceDefinition is not permitted in project platform").
+    #    ⚠️ AppProject의 clusterResourceWhitelist는 {group,kind} 단위로만 걸러 리소스
+    #    이름으로는 더 좁힐 수 없다 - 이 프로젝트의 다른 Application도 임의 CRD를 만들 수
+    #    있게 되는 게 이 완화의 대가다. 더 좁히려면 OPA/Kyverno 같은 별도 정책 계층이 필요.
+    - { group: apiextensions.k8s.io, kind: CustomResourceDefinition }
 
   # namespace 스코프는 전면 허용 — 플랫폼 계층은 관리자 tier다.
   namespaceResourceWhitelist:
