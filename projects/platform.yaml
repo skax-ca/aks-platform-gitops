@@ -24,18 +24,17 @@ spec:
   #    Application의 source repoURL이 여기 없으면 InvalidSpecError로 sync 자체가 안 선다.
   # addon을 추가할 때마다 그 chart repo를 여기 추가한다(addon마다 리뷰 지점).
   sourceRepos:
-    # 이 저장소 — seed 매니페스트 + AGFC ApplicationLoadBalancer CR 로컬 차트
-    # (addons/alb-controller/loadbalancer).
+    # 이 저장소 — seed 매니페스트 + Gateway API 실사용 계층 로컬 매니페스트
+    # (addons/gateway/shared-gateway). 2026-09-07 AGFC를 대체하며 AKS App Routing
+    # Gateway API(Istio 기반, `--enable-app-routing-istio`)로 전환 — 이 addon은
+    # 컨트롤러가 100% AKS 관리형이라(경위는 addons/baseline/gateway.yaml 헤더 참조)
+    # 별도 chart repo를 추가할 필요가 없다. Gateway API CRD·GatewayClass(approuting-istio)
+    # 모두 AKS가 자동 생성한다 — 이 저장소가 sourceRepos에 새로 추가한 항목이 없다.
     - https://github.com/skax-ca/aks-platform-gitops.git
     # ── ArgoCD 자기 관리 ──
     # ArgoCD가 **자기 자신의 차트**를 읽는다. 이 줄이 없으면 bootstrap/argocd-app.yaml이
     #    InvalidSpecError로 sync조차 서지 않는다.
     - https://argoproj.github.io/argo-helm
-    # ── AGFC(ALB Controller) ──
-    # egress 확인 완료(canary, 2026-09-04): private cluster에서 이 호스트에 실제로 닿는다
-    # (aks-reference-infra .omc/plans/aks-platform-gitops-scaffold.md 5절 검증 단계 5번).
-    # ⚠️ OCI registry라 scheme을 쓰지 않는다(oci:// 접두사 없음, karpenter 규약과 동일 형태).
-    - mcr.microsoft.com/application-lb/charts
     # ── Kyverno ──
     # 컨트롤러(kyverno)와 정책(kyverno-policies) 두 차트가 같은 repo에 있다(AWS 원본과
     # 동일 구조) ⇒ 줄은 하나다. egress 확인 완료(2026-09-07 canary, index.yaml 200).
@@ -53,28 +52,20 @@ spec:
   #    createClusterRoles=true + clusterRoleRules.enabled=false라 application controller가
   #    이미 cluster-admin이다 ⇒ apiserver 쪽에는 막는 층이 없고, **여기가 유일한 실질 가드레일**이다.
   #
-  # ⚠️ 아래 목록은 추론이 아니라 **canary 실측**이다(2026-09-04, `helm template
-  #    alb-controller oci://mcr.microsoft.com/application-lb/charts/alb-controller
-  #    --version 1.11.4` 실행 결과와 정확히 일치, digest sha256:8163eec4...).
+  # ⚠️ 아래 목록은 Kyverno 컨트롤러 차트를 helm template로 직접 렌더해 확인한
+  #    cluster-scoped kind다(2026-09-04 canary). Gateway API(App Routing)는 컨트롤러
+  #    자체가 AKS 관리형이라 이 프로젝트가 만드는 cluster-scoped 리소스가 없다 — 아래
+  #    목록에 추가할 것이 없다(addons/baseline/gateway.yaml 헤더 참조).
   clusterResourceWhitelist:
-    - { group: "", kind: Namespace } # CreateNamespace=true(alb-controller.yaml)가 생성
-      # ⚠️ 2026-09-07 정정: 당초 "차트가 azure-alb-system Namespace를 직접 렌더한다"고
-      # 가정했으나 실측 결과 거짓이었다(alb-controller 차트는 Release.Namespace ==
-      # albController.namespace일 때 Namespace를 렌더하지 않는다 — 이 설계가 정확히 그
-      # 경우다). 지금은 ArgoCD의 CreateNamespace=true sync option이 대신 만든다. 이
-      # whitelist 항목 자체는 유지한다 — 다른 addon이 실제로 Namespace 매니페스트를
-      # 렌더할 수 있어서다.
-    - { group: rbac.authorization.k8s.io, kind: ClusterRole } # 컨트롤러 RBAC
-    - { group: rbac.authorization.k8s.io, kind: ClusterRoleBinding } # 컨트롤러 RBAC
+    - { group: "", kind: Namespace } # CreateNamespace=true(kyverno.yaml 등)가 생성
+    - { group: rbac.authorization.k8s.io, kind: ClusterRole } # Kyverno 컨트롤러 RBAC
+    - { group: rbac.authorization.k8s.io, kind: ClusterRoleBinding } # Kyverno 컨트롤러 RBAC
     # AKS Node Auto-Provisioning(NAP)의 NodePool/AKSNodeClass CR(addons/catalog/karpenter.yaml).
     # 둘 다 cluster-scoped다(공식 예제 github.com/Azure/karpenter-provider-azure
     # examples/v1/general-purpose.yaml — metadata에 namespace 없음). 컨트롤러는 Azure
     # 관리형이라 이 프로젝트가 RBAC·Deployment 등을 별도로 만들 필요는 없다.
     - { group: karpenter.sh, kind: NodePool }
     - { group: karpenter.azure.com, kind: AKSNodeClass }
-    # ⛔ Gateway API CRD는 여기 넣지 않는다 — 컨트롤러가 런타임에 동적 생성한다
-    #    (installGatewayApiCRDs: true values, ArgoCD가 소유하지 않음 — AWS 원본 README가
-    #    Kyverno 동적 웹훅에서 경고한 것과 같은 함정. 3-1 검증이 유일한 판정 수단).
     # CustomResourceDefinition은 ArgoCD 자기관리(bootstrap/argocd-app.yaml, argo-cd 차트의
     #    argoproj.io CRD 3종 applications/applicationsets/appprojects)를 흡수하는 데 필요하다
     #    (2026-09-04, 실제 seed 5단계 실행 중 InvalidSpecError로 발견 - "resource

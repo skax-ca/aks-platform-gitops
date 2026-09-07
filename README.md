@@ -24,8 +24,8 @@ Synced/Healthy 상태다. 아래 「다음 단계」에 적힌 이월 항목은 
 | 갈림점 | AWS 원본 | 이 저장소(Azure) |
 |---|---|---|
 | GitOps 엔진 | self-managed ArgoCD | **self-managed ArgoCD**(관리형 확장은 Public Preview라 보류) |
-| L7 Ingress(ALBC 대응) | aws-load-balancer-controller(helm, baseline) | **Application Gateway for Containers(AGFC/ALB Controller)**, self-managed Helm - AKS 관리형 add-on 경로 아님 |
-| addon 배포 원칙 | Terraform=IAM만, 컨트롤러=Helm, CR=GitOps | 동일하게 유지(Managed Identity+federated credential+role assignment는 Terraform, `alb-controller` 컨트롤러는 Helm) |
+| L7 Ingress(ALBC 대응) | aws-load-balancer-controller(helm, baseline) | **AKS App Routing(Gateway API/Istio 기반, 관리형)** — 2026-09-07 AGFC에서 전환. AGFC는 frontend가 공인 FQDN만 지원해(private/internal 옵션 없음, Microsoft 공식 문서로 확정) 이 저장소의 "hub는 전부 private" 원칙과 부딪혔다. App Routing은 AKS가 컨트롤러·CRD·GatewayClass를 전부 관리(패치·마이너 업그레이드까지 AKS 클러스터 업그레이드에 맞춰 자동)하는 GA 경로다 — "AKS는 관리형 서비스를 적극 지원·활용한다"는 기조에 따라 자체 설치형(Envoy Gateway 등) 대신 이쪽을 택했다. 내부 LB는 `Gateway.spec.infrastructure.annotations`의 표준 AKS Service annotation 하나로 끝난다(경위는 `addons/baseline/gateway.yaml` 헤더 참조) |
+| addon 배포 원칙 | Terraform=IAM만, 컨트롤러=Helm, CR=GitOps | App Routing은 컨트롤러가 100% AKS 관리형(Helm 없음) — Terraform은 `aks-reference-infra`의 `live/hub/aks`가 `azapi_update_resource`로 `ingressProfile`을 켜는 것뿐이고, GitOps는 `Gateway` CR 하나만 얹는다. Karpenter·Kyverno는 원칙 그대로 유지 |
 
 ## 이 저장소가 다루는 것 / 다루지 않는 것
 
@@ -45,10 +45,11 @@ AWS 원본과 동일한 3계층 소유 모델에서 **계층 2만** 담당한다
 ```
 bootstrap/    # App-of-Apps root(자기소멸/self-superseding) + ArgoCD 자기 관리 매니페스트
               #   + argocd-seed.sh(vendored, iac-module-library SSOT)
-clusters/hub/aks-demo-hub-krc-main-01/  # cluster Secret + values.yaml(라벨에 못 담는 값)
+clusters/hub/aks-demo-hub-krc-main-01/  # cluster Secret(라벨에 못 담는 값이 생기면 values.yaml도)
 projects/     # AppProject 가드레일 - platform.yaml
-addons/baseline/  # 전 클러스터 팬아웃 ApplicationSet(environment 라벨) - alb-controller.yaml
-addons/alb-controller/loadbalancer/  # ApplicationLoadBalancer CR 로컬 helm 차트
+addons/baseline/  # 전 클러스터 팬아웃 ApplicationSet(environment 라벨) - gateway.yaml 등
+addons/gateway/shared-gateway/  # Gateway 평문 매니페스트(컨트롤러는 AKS 관리형이라 GatewayClass도
+                                #   없다 - per-cluster 값도 없어 helm 아님)
 addons/catalog/   # opt-in 카탈로그 - 아직 후보 없음
 ```
 
@@ -58,8 +59,11 @@ AWS 원본에 있는 `addons/karpenter/nodepool/`(Karpenter 로컬 helm 차트)�
 ## root App 스캔에서 파일을 빼는 방법 — 마커, `exclude` 아님
 
 `bootstrap/root-app.yaml`은 저장소 루트를 재귀로 스캔해 모든 `.yaml`/`.yml`/`.json`을
-매니페스트로 적용한다. `addons/alb-controller/loadbalancer/`의 helm 템플릿(`{{
-.Values.subnetId }}` 등 미치환 문법)처럼 **매니페스트가 아닌 파일**은 스캔에서 빠져야 한다.
+매니페스트로 적용한다. `addons/karpenter/nodepool/`의 helm 템플릿(`{{ .Values.environment }}`
+등 미치환 문법)처럼 **매니페스트가 아닌 파일**은 스캔에서 빠져야 한다(마커의 실제 용도는
+"템플릿 문법 회피"보다 넓다 — `addons/gateway/shared-gateway/`처럼 평문 YAML이라 템플릿
+문법이 없는 경우도, root-app이 전담 ApplicationSet과 별개로 **중복 소유**하지 않도록
+마커를 붙인다).
 
 ⛔ **`root-app.yaml`의 `exclude` 목록을 늘리지 않는다.** 대신 파일 안에
 `+argocd:skip-file-rendering` 마커를 넣는다(AWS 원본 `eks-platform-gitops`와 동일 규약).
@@ -75,16 +79,14 @@ AWS 원본에 있는 `addons/karpenter/nodepool/`(Karpenter 로컬 helm 차트)�
 
 ⚠️ **마커는 root-app만 빼는 게 아니라 "Directory 타입으로 이 파일을 읽는 모든
 Application"에서 뺀다.** `Chart.yaml`이 있는 디렉토리를 전담 소스로 참조하면 Helm
-타입으로 인식돼 이 함정을 피한다(`addons/alb-controller/loadbalancer/`가 이 형태).
+타입으로 인식돼 이 함정을 피한다(`addons/karpenter/nodepool/`가 이 형태). 반대로
+`addons/gateway/shared-gateway/`처럼 helm이 아닌 평문 Directory 소스는 이 우회가 없어
+마커가 유일한 방어선이다.
 
 **`argocd-seed.sh`는 `.sh`라 애초에 directory 소스의 스캔 대상이 아니다.**
 
 ## 알려진 미해결 항목
 
-- **matrix generator의 클러스터 수 확장성**: `addons/baseline/alb-controller.yaml`의
-  `alb-loadbalancer` ApplicationSet은 cluster generator × git files generator의
-  Cartesian product를 쓴다. 클러스터가 hub 하나뿐인 지금은 1×1=1이라 우연히 맞지만,
-  dev를 두 번째 클러스터로 등록하면 재검증이 필요하다(해당 파일 헤더 주석 참고).
 - **GitHub App 설치 범위**: repository Secret은 기존 `skax-ca-gitops-reader` App(원래
   `eks-platform-gitops`용)을 재사용한다(2026-09-04 결정) - 이 저장소를 GitHub App
   설치(installation) 범위에 추가하는 작업이 seed 실행 전 필요.

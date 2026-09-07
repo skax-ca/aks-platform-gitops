@@ -1,0 +1,74 @@
+# Gateway API 실사용 계층 — ①baseline addon (전 클러스터)
+#
+# 설계: 2026-09-07, AGFC(Application Gateway for Containers)를 대체하며 신설.
+#       AGFC는 frontend가 공인 FQDN만 지원하고 private/internal 옵션이 없어서
+#       (Microsoft 공식 문서로 확정: "Private IP addresses aren't currently supported",
+#       learn.microsoft.com/en-us/azure/application-gateway/for-containers/
+#       application-gateway-for-containers-components) 이 저장소의 "hub는 전부 private"
+#       원칙과 정면으로 부딪혔다. 대안 조사 결과:
+#         - Cilium Gateway API: AKS의 "Azure CNI Powered by Cilium"은 관리형이라
+#           Cilium 자체의 Gateway API 기능을 노출하지 않는다(github.com/Azure/AKS#5444) — 탈락.
+#         - Envoy Gateway(자체 설치+GitOps): Terraform이 전혀 필요 없다는 장점이 있었으나,
+#           AKS가 관리형 서비스를 적극 지원·활용하는 기조와 맞지 않는다고 판단해 보류.
+#         - **AKS App Routing(Gateway API/Istio 기반, 이 파일)**: Microsoft가 GA로
+#           지원하는 관리형 경로(`--enable-app-routing-istio`, `--enable-gateway-api`).
+#           내부 LB는 표준 AKS Service annotation 하나로 끝난다(별도 Azure PaaS
+#           불필요). 컨트롤러(istiod)·Gateway API CRD·GatewayClass(`approuting-istio`)
+#           전부 AKS가 관리 — 패치·마이너 버전 업그레이드까지 AKS 클러스터 업그레이드에
+#           맞춰 자동 수행된다(learn.microsoft.com/en-us/azure/aks/app-routing-gateway-api
+#           "Versioning and Upgrades" 절).
+#
+# 🔑 이 addon이 **컨트롤러를 설치하지 않는다** — 위 세 후보(AGFC·Envoy Gateway)와의
+#    핵심 차이다. `live/hub/aks`(aks-reference-infra)의 Terraform이 `azapi_update_resource`
+#    로 AKS 클러스터 자체의 `ingressProfile`(gatewayAPI.installation=Standard,
+#    webAppRouting.gatewayAPIImplementations.appRoutingIstio.mode=Enabled)을 켜는
+#    순간 컨트롤러·CRD·GatewayClass가 전부 그 클러스터 안에 나타난다 — 이 GitOps
+#    저장소는 그 위에 `Gateway` 리소스 하나(addons/gateway/shared-gateway/)만 얹는다.
+#
+# ⚠️ **순서 의존이 GitOps 밖에 있다.** 다른 baseline addon(Karpenter·Kyverno)은
+#    sync-wave로 "컨트롤러 먼저, CR 나중"을 GitOps 안에서 표현했지만, 이번엔 그 순서가
+#    Terraform CI apply(`live/hub/aks`)가 먼저 끝나야 한다는 뜻이다 — sync-wave로
+#    표현할 수 없다. Terraform apply 전에 이 Application이 먼저 sync되면 `Gateway`가
+#    `gatewayClassName: approuting-istio`를 못 찾아 `Accepted: False`로 멈춘다(에러가
+#    아니라 조용한 대기 — selfHeal이 켜져 있어 Terraform apply가 끝나면 자동으로 풀린다).
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: gateway
+  namespace: argocd
+spec:
+  generators:
+    # 다른 baseline addon과 동일한 cluster generator. per-cluster 값이 필요 없다
+    # (App Routing은 클러스터 자체의 AKS 기능이라 workload identity·subnet 같은
+    # per-cluster 파라미터가 없다) — 그래서 addons/gateway/shared-gateway/는 helm
+    # 차트가 아니라 평범한 Directory 소스다.
+    - clusters:
+        selector:
+          matchExpressions:
+            - key: environment
+              operator: Exists
+  template:
+    metadata:
+      name: '{{name}}-gateway'
+      finalizers:
+        - resources-finalizer.argocd.argoproj.io
+    spec:
+      project: platform
+      source:
+        repoURL: https://github.com/skax-ca/aks-platform-gitops.git
+        targetRevision: main
+        path: addons/gateway/shared-gateway
+      destination:
+        server: '{{server}}'
+        namespace: gateway-system
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
+          # Terraform이 아직 ingressProfile을 안 켠 상태에서 이 Application이 먼저
+          # sync될 수 있다(위 헤더 참고) — 그 시점엔 GatewayClass 자체가 없어 dry-run이
+          # 실패한다. Karpenter NodePool과 같은 이유로 건다.
+          - SkipDryRunOnMissingResource=true
+          - ServerSideApply=true
