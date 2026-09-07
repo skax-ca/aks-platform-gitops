@@ -36,6 +36,10 @@ spec:
     # (aks-reference-infra .omc/plans/aks-platform-gitops-scaffold.md 5절 검증 단계 5번).
     # ⚠️ OCI registry라 scheme을 쓰지 않는다(oci:// 접두사 없음, karpenter 규약과 동일 형태).
     - mcr.microsoft.com/application-lb/charts
+    # ── Kyverno ──
+    # 컨트롤러(kyverno)와 정책(kyverno-policies) 두 차트가 같은 repo에 있다(AWS 원본과
+    # 동일 구조) ⇒ 줄은 하나다. egress 확인 완료(2026-09-07 canary, index.yaml 200).
+    - https://kyverno.github.io/kyverno/
 
   # 등록된 클러스터만 허용. 새 클러스터 등록 시 여기에도 추가한다.
   destinations:
@@ -79,6 +83,13 @@ spec:
     #    이름으로는 더 좁힐 수 없다 - 이 프로젝트의 다른 Application도 임의 CRD를 만들 수
     #    있게 되는 게 이 완화의 대가다. 더 좁히려면 OPA/Kyverno 같은 별도 정책 계층이 필요.
     - { group: apiextensions.k8s.io, kind: CustomResourceDefinition }
+    # Kyverno가 배포하는 정책 CR(kyverno-policies 업스트림 11개 + 이 저장소가 직접
+    # 소유하는 커스텀 정책 1개, 둘 다 kyverno.io/v1). cluster-scoped다. 컨트롤러 차트
+    # 3.8.2를 helm template로 직접 렌더해 cluster-scoped kind가 CRD·ClusterRole·
+    # ClusterRoleBinding(전부 위에 이미 있음)뿐임을 실측 확인 — 추가로 필요한 건
+    # 이 정책 CR 하나뿐이다. ValidatingWebhookConfiguration은 컨트롤러가 런타임에
+    # 동적 등록하고 렌더 결과에 없어 넣지 않는다(AWS 원본 확인과 동일 결론).
+    - { group: kyverno.io, kind: ClusterPolicy }
 
   # namespace 스코프는 전면 허용 — 플랫폼 계층은 관리자 tier다.
   namespaceResourceWhitelist:
