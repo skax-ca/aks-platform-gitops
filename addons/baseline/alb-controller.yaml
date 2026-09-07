@@ -63,6 +63,24 @@ spec:
           selfHeal: true
         syncOptions:
           - ServerSideApply=true
+          # 2026-09-07 실측+공식문서 확인: alb-controller 차트의 templates/common.yaml은
+          # `{{- if not (eq .Release.Namespace .Values.albController.namespace) }}`일 때만
+          # Namespace 리소스를 렌더한다 — Release.Namespace(ArgoCD가 destination.namespace를
+          # 그대로 넘김)와 albController.namespace(위 helm.parameters, 둘 다
+          # azure-alb-system)가 같아 조건이 거짓이 되고 Namespace가 아예 안 만들어져
+          # "namespaces \"azure-alb-system\" not found"로 5회 재시도 실패하는 것을 확인했다
+          # (helm template 직접 렌더 vs `argocd app manifests` 비교, kind 목록에 Namespace
+          # 결측으로 확정). Microsoft 공식 Helm 퀵스타트(quickstart-deploy-application-
+          # gateway-for-containers-alb-controller-helm)도 release 네임스페이스(--namespace)와
+          # 컨트롤러 네임스페이스(--set albController.namespace)를 서로 다르게 두는 걸
+          # 전제로 한다(둘이 같으면 차트가 아니라 호출자가 미리 만들어 둬야 함) — 이 설계는
+          # 둘을 같은 값으로 뒀으므로 ArgoCD 쪽에서 대신 만들어줘야 한다. ArgoCD 공식 문서
+          # (user-guide/sync-options#automatic-creation-of-namespace)의 CreateNamespace=true는
+          # "차트가 Namespace를 렌더하든 안 하든" spec.destination.namespace를 sync 전에
+          # 직접 생성해주므로 이 한 줄로 충분하다(위 clusterResourceWhitelist의 Namespace
+          # 허용 항목은 유지 — 다른 addon이 실제로 Namespace 매니페스트를 렌더하는 경우를
+          # 위해 남겨둔다).
+          - CreateNamespace=true
 ---
 # ② ApplicationLoadBalancer CR(로컬 helm 차트, sync-wave 5)
 #
