@@ -62,6 +62,12 @@ spec:
       # 렌더할 수 있어서다.
     - { group: rbac.authorization.k8s.io, kind: ClusterRole } # 컨트롤러 RBAC
     - { group: rbac.authorization.k8s.io, kind: ClusterRoleBinding } # 컨트롤러 RBAC
+    # AKS Node Auto-Provisioning(NAP)의 NodePool/AKSNodeClass CR(addons/catalog/karpenter.yaml).
+    # 둘 다 cluster-scoped다(공식 예제 github.com/Azure/karpenter-provider-azure
+    # examples/v1/general-purpose.yaml — metadata에 namespace 없음). 컨트롤러는 Azure
+    # 관리형이라 이 프로젝트가 RBAC·Deployment 등을 별도로 만들 필요는 없다.
+    - { group: karpenter.sh, kind: NodePool }
+    - { group: karpenter.azure.com, kind: AKSNodeClass }
     # ⛔ Gateway API CRD는 여기 넣지 않는다 — 컨트롤러가 런타임에 동적 생성한다
     #    (installGatewayApiCRDs: true values, ArgoCD가 소유하지 않음 — AWS 원본 README가
     #    Kyverno 동적 웹훅에서 경고한 것과 같은 함정. 3-1 검증이 유일한 판정 수단).

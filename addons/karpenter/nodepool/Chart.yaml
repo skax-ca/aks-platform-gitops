@@ -1,0 +1,21 @@
+# +argocd:skip-file-rendering
+#   ⚠️ 이 마커는 root-app(directory 소스)이 이 파일을 매니페스트로 읽지 않게 한다.
+#      root-app의 exclude로 하지 않는 이유는 README의 "root App 스캔에서 파일을 빼는
+#      방법" 절 참조(AWS 원본 skax-ca/eks-platform-gitops README와 동일 규약,
+#      addons/alb-controller/loadbalancer/Chart.yaml과 동일 패턴).
+apiVersion: v2
+name: karpenter-nodepool
+description: |
+  AKS Node Auto-Provisioning(NAP)의 NodePool/AKSNodeClass CR — 계층 2(플랫폼 GitOps)가
+  소유하는 인프라 CR. 컨트롤러 자체는 Azure 관리형이다(live/hub/aks의 enable_karpenter=true
+  하나로 끝난다, Microsoft 공식문서 aks/node-auto-provisioning: "NAP automatically deploys,
+  configures, and manages Karpenter on your AKS clusters") — 이 차트는 CR 두 개만 갖는다.
+
+  값이 없는데도 헬름 차트인 이유는 root-app 스캔 제외 규약(Chart.yaml 존재) 때문이지
+  템플릿 변수가 필요해서가 아니다 — AWS의 karpenter-nodepool 차트는 clusterName·nodeRole을
+  per-cluster로 주입해야 했지만(EC2NodeClass가 subnet/SG를 태그로 찾음), Azure AKSNodeClass는
+  그런 참조 필드 자체가 없다(공식 예제 github.com/Azure/karpenter-provider-azure
+  examples/v1/general-purpose.yaml — spec은 imageFamily 하나뿐, 네트워킹은 클러스터의
+  node_provisioning_profile이 이미 소유한 VNet 통합에서 자동 상속된다).
+type: application
+version: 0.1.0

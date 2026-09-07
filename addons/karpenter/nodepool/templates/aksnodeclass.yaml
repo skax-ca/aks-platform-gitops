@@ -1,0 +1,14 @@
+{{- /* +argocd:skip-file-rendering — root-app 스캔 제외. 렌더 출력에는 남지 않는다 */ -}}
+apiVersion: karpenter.azure.com/v1beta1
+kind: AKSNodeClass
+metadata:
+  name: general-purpose
+  annotations:
+    kubernetes.io/description: >-
+      플랫폼 baseline AKSNodeClass. subnet·보안그룹은 이 리소스가 아니라 클러스터의
+      node_provisioning_profile(live/hub/aks)이 이미 소유한 VNet 통합에서 상속된다 —
+      AWS EC2NodeClass의 subnetSelectorTerms/securityGroupSelectorTerms 같은 필드가
+      Azure AKSNodeClass에는 없다(github.com/Azure/karpenter-provider-azure
+      examples/v1/general-purpose.yaml 공식 예제로 확인, spec은 imageFamily 하나뿐).
+spec:
+  imageFamily: Ubuntu
