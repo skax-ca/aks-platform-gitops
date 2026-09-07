@@ -48,8 +48,9 @@ bootstrap/    # App-of-Apps root(자기소멸/self-superseding) + ArgoCD 자기 
 clusters/hub/aks-demo-hub-krc-main-01/  # cluster Secret(라벨에 못 담는 값이 생기면 values.yaml도)
 projects/     # AppProject 가드레일 - platform.yaml
 addons/baseline/  # 전 클러스터 팬아웃 ApplicationSet(environment 라벨) - gateway.yaml 등
-addons/gateway/shared-gateway/  # Gateway 평문 매니페스트(컨트롤러는 AKS 관리형이라 GatewayClass도
-                                #   없다 - per-cluster 값도 없어 helm 아님)
+addons/gateway/shared-gateway/  # Gateway 로컬 helm 차트(컨트롤러는 AKS 관리형이라 GatewayClass도
+                                #   없다 - per-cluster 값은 없지만 마커 메커니즘 때문에 helm이다,
+                                #   아래 "root App 스캔에서 파일을 빼는 방법" 절 참고)
 addons/catalog/   # opt-in 카탈로그 - 아직 후보 없음
 ```
 
@@ -60,10 +61,7 @@ AWS 원본에 있는 `addons/karpenter/nodepool/`(Karpenter 로컬 helm 차트)�
 
 `bootstrap/root-app.yaml`은 저장소 루트를 재귀로 스캔해 모든 `.yaml`/`.yml`/`.json`을
 매니페스트로 적용한다. `addons/karpenter/nodepool/`의 helm 템플릿(`{{ .Values.environment }}`
-등 미치환 문법)처럼 **매니페스트가 아닌 파일**은 스캔에서 빠져야 한다(마커의 실제 용도는
-"템플릿 문법 회피"보다 넓다 — `addons/gateway/shared-gateway/`처럼 평문 YAML이라 템플릿
-문법이 없는 경우도, root-app이 전담 ApplicationSet과 별개로 **중복 소유**하지 않도록
-마커를 붙인다).
+등 미치환 문법)처럼 **매니페스트가 아닌 파일**은 스캔에서 빠져야 한다.
 
 ⛔ **`root-app.yaml`의 `exclude` 목록을 늘리지 않는다.** 대신 파일 안에
 `+argocd:skip-file-rendering` 마커를 넣는다(AWS 원본 `eks-platform-gitops`와 동일 규약).
@@ -78,10 +76,17 @@ AWS 원본에 있는 `addons/karpenter/nodepool/`(Karpenter 로컬 helm 차트)�
 스캔에서 제외**한다 — 에러 없이 조용히, 영구 `OutOfSync`로만 드러난다.
 
 ⚠️ **마커는 root-app만 빼는 게 아니라 "Directory 타입으로 이 파일을 읽는 모든
-Application"에서 뺀다.** `Chart.yaml`이 있는 디렉토리를 전담 소스로 참조하면 Helm
-타입으로 인식돼 이 함정을 피한다(`addons/karpenter/nodepool/`가 이 형태). 반대로
-`addons/gateway/shared-gateway/`처럼 helm이 아닌 평문 Directory 소스는 이 우회가 없어
-마커가 유일한 방어선이다.
+Application"에서 뺀다 — 전담 Application 자기 자신도 예외가 아니다.** 2026-09-07
+실측 사고: `addons/gateway/shared-gateway/`를 처음엔 helm 없이 평문 `gateway.yaml`
+하나로 두고 그 파일에도 마커를 붙였다. `addons/baseline/gateway.yaml`의 전담
+ApplicationSet도 그 경로를 **Directory 소스**로 읽었기 때문에 자기 자신도 마커에
+걸려 렌더링이 통째로 비었다 — `argocd app manifests`가 빈 출력을 반환하는데
+`Application`은 리소스 0개라 비교할 게 없으니 `Synced`/`Healthy`로 조용히 표시됐다
+(에러도 경고도 없다). `Chart.yaml`이 있는 디렉토리를 전담 소스로 참조하면 Helm
+타입으로 인식돼 이 함정을 피한다(`addons/karpenter/nodepool/`·
+`addons/gateway/shared-gateway/`가 이 형태) — **마커가 붙은 파일을 실제로 렌더해야
+하는 전담 Application이 있다면, 그 소스는 반드시 Helm 타입이어야 한다.** 평문
+Directory 소스로 그 파일 자체를 노출하는 조합은 성립하지 않는다.
 
 **`argocd-seed.sh`는 `.sh`라 애초에 directory 소스의 스캔 대상이 아니다.**
 

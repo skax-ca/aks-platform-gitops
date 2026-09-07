@@ -38,10 +38,15 @@ metadata:
   namespace: argocd
 spec:
   generators:
-    # 다른 baseline addon과 동일한 cluster generator. per-cluster 값이 필요 없다
+    # 다른 baseline addon과 동일한 cluster generator. per-cluster 값은 없지만
     # (App Routing은 클러스터 자체의 AKS 기능이라 workload identity·subnet 같은
-    # per-cluster 파라미터가 없다) — 그래서 addons/gateway/shared-gateway/는 helm
-    # 차트가 아니라 평범한 Directory 소스다.
+    # per-cluster 파라미터가 없다) addons/gateway/shared-gateway/는 그래도 helm
+    # 차트다 — 값 주입이 아니라 `+argocd:skip-file-rendering` 마커 때문이다. 그
+    # 마커는 root-app뿐 아니라 "Directory 타입으로 이 경로를 읽는 모든
+    # Application"에서 렌더링을 막는다(2026-09-07 실측: 이 파일을 평문 Directory로
+    # 뒀더니 이 ApplicationSet 자신도 그 마커에 걸려 리소스 0개로 조용히
+    # Synced/Healthy만 찍혔다) — Chart.yaml이 있는 디렉토리를 전담 소스로 참조하면
+    # Helm 타입으로 인식돼 이 함정을 피한다(shared-gateway/Chart.yaml 헤더 참고).
     - clusters:
         selector:
           matchExpressions:

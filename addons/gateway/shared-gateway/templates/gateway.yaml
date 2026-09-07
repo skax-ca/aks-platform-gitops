@@ -1,18 +1,13 @@
-# +argocd:skip-file-rendering
-#   ⚠️ 이 마커는 root-app(directory 소스)이 이 파일을 독자적으로 다시 적용하지 않게 한다
-#      (README "root App 스캔에서 파일을 빼는 방법" 절 참조) — 소유자는 오직
-#      addons/baseline/gateway.yaml의 ApplicationSet 하나다.
-#
+{{- /* +argocd:skip-file-rendering — root-app 스캔 제외. 렌더 출력에는 남지 않는다 */ -}}
 # Gateway API 실사용 계층 — AKS App Routing(Istio 기반) GatewayClass를 참조한다.
 # `gatewayClassName: approuting-istio`는 AKS가 컨트롤러 기동 시 자동 등록하는 이름
 # (learn.microsoft.com/en-us/azure/aks/app-routing-gateway-api — "Gateway Class name"
-# 표) — 이 저장소가 GatewayClass를 따로 만들 필요가 없다(구 AGFC·검토했던 Envoy
-# Gateway와의 핵심 차이, addons/baseline/gateway.yaml 헤더 참조).
+# 표) — 이 저장소가 GatewayClass를 따로 만들 필요가 없다.
 #
 # 내부 LB는 `spec.infrastructure.annotations`에 표준 AKS Service annotation을 얹는
 # 것으로 끝난다(learn.microsoft.com/en-us/azure/aks/istio-gateway-api의 "Annotation
 # customizations" 절, Gateway API v1의 infrastructure 필드 — 별도 CR·ConfigMap
-# 불필요. Envoy Gateway 검토안이 요구했던 EnvoyProxy CR보다도 단순하다).
+# 불필요).
 #
 # ⛔ HTTPRoute·백엔드 Service는 여기 없다 — 계층 3(앱 GitOps)은 이 저장소 범위 밖이다
 #    (README "이 저장소가 다루는 것 / 다루지 않는 것" 참조, apps/ 디렉토리는 의도적으로
