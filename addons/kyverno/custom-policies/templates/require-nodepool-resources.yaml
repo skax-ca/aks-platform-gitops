@@ -50,9 +50,19 @@ spec:
           # bootstrap/argocd-values.yaml도 채우지 않음).
           # kube-system·kyverno·kube-public·kube-node-lease는 Kyverno 기본
           # config.resourceFilters가 이미 모든 정책에서 제외한다 — 여기 따로 적지 않는다.
+          #
+          # aks-istio-system(AKS App Routing의 Gateway API/Istio 구현, 2026-09-07)도
+          # 같은 이유로 제외한다 — istiod Deployment가 리소스 requests/limits를 선언하지
+          # 않아, Azure가 내부적으로 재시도하며 만들려는 요청이 매번 이 정책(autogen된
+          # Deployment 레벨 규칙)에 막혀 istiod가 영원히 뜨지 못하는 것을 실측 확인했다
+          # (Kyverno admission-controller 로그, resource=aks-istio-system/Deployment/istiod,
+          # user=aksService, 2026-09-07T11:31부터 12시간 넘게 30분~1시간 간격으로 재시도).
+          # 이 네임스페이스는 AKS가 관리하는 매니페스트라 이 저장소가 리소스 필드를 채울
+          # 수 없다 — argocd 제외와 동일한 성격의 예외다.
           - resources:
               namespaces:
                 - argocd
+                - aks-istio-system
       validate:
         message: >-
           NAP이 올바르게 스케줄링하려면 모든 컨테이너에 CPU/메모리 requests와
