@@ -9,21 +9,17 @@
 매니페스트 저장소. AWS 원본 [`eks-platform-gitops`](https://github.com/skax-ca/eks-platform-gitops)의
 Azure 대응.
 
-⛔ **설계 SSOT는 이 저장소가 아니다.** GitOps 엔진·Ingress addon 선정 같은 이
-저장소 고유의 설계 판단은 `aks-reference-infra`의
-`.omc/plans/aks-platform-gitops-addon-selection.md`가 갖는다(6라운드 공식 문서
-리서치 근거 전문). 클러스터·네트워킹·bootstrap 자격증명은 `aks-reference-infra`
-자체가 SSOT다.
+⛔ **설계 SSOT는 이 저장소가 아니다.** 클러스터·네트워킹·bootstrap 자격증명은
+`aks-reference-infra` 자체가 SSOT다. GitOps 엔진·Ingress addon 선정 같은 이
+저장소 고유의 설계 판단은 아래 표와 이 저장소 자신의 매니페스트 주석이 SSOT다.
 
-✅ **매니페스트 작성 완료(2026-09-04), 실행 전.** `bootstrap/`·`projects/`·`clusters/hub/`·
-`addons/`가 AWS 원본 1:1 대응으로 채워졌다(RALPLAN-DR로 설계, `aks-reference-infra`의
-`.omc/plans/aks-platform-gitops-scaffold.md` Follow-up 1). ⏳ **실제 seed 실행은 아직**
-- private cluster라 workbench가 필요한데, `aks-reference-infra`의
-`live/hub/workbench`(별도 세션 진행 중)가 아직 완료 전이다.
+✅ **hub 클러스터에 배포 완료.** self-managed ArgoCD가 자기 자신을 포함해
+Synced/Healthy 상태다. 아래 「다음 단계」에 적힌 이월 항목은 이 파일 갱신 시점에
+전부 재확인한 것은 아니다. 실제 상태는 `argocd app list --core` 등으로 직접 조회한다.
 
 ---
 
-## 확정된 설계 (근거는 위 plans 문서)
+## 확정된 설계
 
 | 갈림점 | AWS 원본 | 이 저장소(Azure) |
 |---|---|---|
