@@ -43,26 +43,40 @@ spec:
           - resources:
               kinds:
                 - Pod
+              # 이 정책이 실제로 지키려는 대상은 애플리케이션/플랫폼 addon 파드다 — AKS
+              # 자신이 내부적으로 관리하는 시스템 네임스페이스는 매칭 단계에서 통째로
+              # 뺀다(2026-09-07 실측: App Routing의 Istio 구현체가 istiod Deployment를
+              # aks-istio-system에 만드는데 리소스 requests/limits를 선언하지 않아, Azure
+              # 내부 컨트롤러(user=aksService)의 재시도가 이 정책의 autogen Deployment
+              # 규칙에 매번 막혀 12시간 넘게 istiod가 뜨지 못했다 — Kyverno admission
+              # 로그로 확인). kube-system·aks-istio-system 둘 다 `kubernetes.azure.com/
+              # managedby: aks` 라벨을 공유한다 — Microsoft 공식 문서(learn.microsoft.com/
+              # en-us/azure/aks/core-aks-concepts, concepts-managed-namespaces)가 명시하는
+              # "AKS가 관리하는 네임스페이스"의 표준 마커다. 개별 네임스페이스 이름을
+              # exclude 목록에 하나씩 추가하는 대신 이 라벨로 걸러, Azure가 향후 또 다른
+              # aks-*-system 네임스페이스로 관리형 addon을 내놓아도(예: 새 GA 기능) 이
+              # 정책이 또 조용히 막는 사고가 재발하지 않게 한다.
+              #
+              # exclude 블록이 아니라 match 블록에 두는 이유: Kyverno의 오래된 버그
+              # (github.com/kyverno/kyverno/issues/2608)가 exclude.resources.namespaceSelector가
+              # 무시되는 사례를 보고했다 — match 블록의 namespaceSelector는 공식 문서
+              # 예제에 그대로 나오는 경로라 이쪽을 쓴다.
+              namespaceSelector:
+                matchExpressions:
+                  - key: kubernetes.azure.com/managedby
+                    operator: NotIn
+                    values:
+                      - aks
       exclude:
         any:
-          # ArgoCD 자기 자신은 제외한다 — AWS 원본과 동일 근거(argo-cd 차트 컴포넌트가
-          # resources: {} 기본값이라 지금 켜면 ArgoCD 자신의 재배포가 이 정책에 막힌다,
-          # bootstrap/argocd-values.yaml도 채우지 않음).
-          # kube-system·kyverno·kube-public·kube-node-lease는 Kyverno 기본
-          # config.resourceFilters가 이미 모든 정책에서 제외한다 — 여기 따로 적지 않는다.
-          #
-          # aks-istio-system(AKS App Routing의 Gateway API/Istio 구현, 2026-09-07)도
-          # 같은 이유로 제외한다 — istiod Deployment가 리소스 requests/limits를 선언하지
-          # 않아, Azure가 내부적으로 재시도하며 만들려는 요청이 매번 이 정책(autogen된
-          # Deployment 레벨 규칙)에 막혀 istiod가 영원히 뜨지 못하는 것을 실측 확인했다
-          # (Kyverno admission-controller 로그, resource=aks-istio-system/Deployment/istiod,
-          # user=aksService, 2026-09-07T11:31부터 12시간 넘게 30분~1시간 간격으로 재시도).
-          # 이 네임스페이스는 AKS가 관리하는 매니페스트라 이 저장소가 리소스 필드를 채울
-          # 수 없다 — argocd 제외와 동일한 성격의 예외다.
+          # ArgoCD는 AKS 관리형이 아니라(이 저장소가 GitOps로 직접 배포하는 플랫폼
+          # 컴포넌트) 위 namespaceSelector로 걸러지지 않는다 — 별도로 제외한다. AWS
+          # 원본과 동일 근거(argo-cd 차트 컴포넌트가 resources: {} 기본값이라 지금
+          # 켜면 ArgoCD 자신의 재배포가 이 정책에 막힌다, bootstrap/argocd-values.yaml도
+          # 채우지 않음).
           - resources:
               namespaces:
                 - argocd
-                - aks-istio-system
       validate:
         message: >-
           NAP이 올바르게 스케줄링하려면 모든 컨테이너에 CPU/메모리 requests와
