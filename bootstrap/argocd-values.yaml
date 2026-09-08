@@ -39,6 +39,28 @@ dex:
 notifications:
   enabled: false
 
+# controller·server를 hub ArgoCD Workload Identity(aks-reference-infra의
+# live/hub/vwan이 만든 UAMI, client-id는 그 root의 output)로 federate한다.
+#   설계: aks-reference-infra의 .omc/plans/dev-gitops-registration.md(6.5차 패치)
+#   annotations(ServiceAccount)·podLabels(Pod) 둘 다 있어야 웹훅이 토큰 파일을
+#   주입한다 — 하나만 있으면 조용히 무동작이다(argo-helm 10.3.0 values.yaml 스키마
+#   확인, controller.serviceAccount.annotations + controller.podLabels 조합).
+#   application-controller가 실제로 스포크 API 서버와 통신해 reconcile하고,
+#   server는 UI·CLI·`argocd app diff` 경로에서 같은 API를 호출한다(둘 다 필요).
+controller:
+  serviceAccount:
+    annotations:
+      azure.workload.identity/client-id: "35e68e71-1bfe-4374-950e-1bae83e5f3e0"
+  podLabels:
+    azure.workload.identity/use: "true"
+
+server:
+  serviceAccount:
+    annotations:
+      azure.workload.identity/client-id: "35e68e71-1bfe-4374-950e-1bae83e5f3e0"
+  podLabels:
+    azure.workload.identity/use: "true"
+
 # ─────────────────────────────────────────────────────────────────────────────
 # 기본값을 유지하는 것 — 판단의 기록 (여기에 값을 적지 않는다)
 # ─────────────────────────────────────────────────────────────────────────────
