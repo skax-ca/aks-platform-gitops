@@ -47,9 +47,10 @@ spec:
       namespace: '*'
     # dev(spoke) AKS — private_cluster_public_fqdn_enabled=true로 얻은 공개 FQDN
     # (일반 공개 DNS가 private IP를 직접 반환, aks-reference-infra
-    # .omc/plans/dev-gitops-registration.md "## 8차" 참고). cluster-secret.yaml은
-    # Step 11에서 이 이름으로 작성한다.
-    - server: https://aks-demo-dev-krc-main-01-1amwkeg8.hcp.koreacentral.azmk8s.io:443
+    # .omc/plans/dev-gitops-registration.md "## 8차" 참고). 재생성 때마다 접미사가
+    # 바뀐다 - clusters/dev/.../cluster-secret.yaml의 server와 함께 갱신한다
+    # (2026-09-10 전체 철거→재구축 e2e 검증 중 이 값이 stale했던 걸 발견·정정).
+    - server: https://aks-demo-dev-krc-main-01-vsj5lmr3.hcp.koreacentral.azmk8s.io:443
       namespace: '*'
 
   # 클러스터 스코프 리소스는 **기본 차단**으로 시작해 addon마다 필요한 kind만 연다.
