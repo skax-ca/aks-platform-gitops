@@ -1,18 +1,31 @@
-# Kyverno — ①baseline addon (정책 엔진 + PSS 정책)
+# Kyverno 엔진 — ①baseline addon (정책 엔진. 차트가 CRD 22개를 동봉한다)
 #
-# 설계: 2026-09-07, AWS 원본 skax-ca/eks-platform-gitops의 addons/baseline/kyverno.yaml
-#       구조(3-ApplicationSet 분리)를 그대로 포팅하되, 아래 3가지는 실측으로 다르게 갔다.
+# 설계: AWS 원본 skax-ca/eks-platform-gitops의 addons/baseline/kyverno.yaml 구조를 그대로
+#       포팅하되, 아래 3가지는 실측으로 다르게 갔다.
 #
 # **①baseline인 이유(AWS와 동일)**: 정책 엔진은 가드레일이고, 옵트인 가드레일은 가드레일이
-#    아니다. alb-controller·karpenter와 같은 층에 둔다 — Terraform 전제가 없어(아래) 모든
-#    클러스터에 자동 적용해도 안전하다(Karpenter/NAP처럼 클러스터별 opt-in Terraform 플래그에
-#    묶일 이유가 없다).
+#    아니다. karpenter와 같은 층에 둔다 — Terraform 전제가 없어(아래) 모든 클러스터에 자동
+#    적용해도 안전하다(NAP처럼 클러스터별 opt-in Terraform 플래그에 묶일 이유가 없다).
 #
-# ApplicationSet이 3개인 이유는 CRD 순서 + 소유권 분리다(AWS와 동일 근거) — 파일은
-#    하나로 유지한다.
-#    ① 컨트롤러 helm — 차트가 ClusterPolicy 등 CRD 22개를 동봉한다        (sync-wave 0)
-#    ② PSS 정책(ClusterPolicy 11개, 업스트림 kyverno-policies 차트)         (sync-wave 5)
-#    ③ 커스텀 정책(ClusterPolicy, 이 저장소가 직접 소유) — NodePool 자원 요구사항 강제 (sync-wave 5)
+# ─────────────────────────────────────────────────────────────────────────────
+# **Kyverno는 파일 3개다.** 컴포넌트로 나누고 **티어는 한 파일에 붙여 둔다** — 승격할 때
+#    두 `targetRevision`을 나란히 읽어야 하기 때문이다(그 차이가 승격 지점의 기록이다).
+#
+#    · kyverno.yaml (이 파일)        ① 엔진 helm. CRD 22개 동봉        (sync-wave 0)
+#                                      staged ⇒ `-prd` · `-nonprd` 두 블록
+#    · kyverno-policies.yaml         ② PSS 정책(업스트림 차트)         (sync-wave 5)
+#                                      staged ⇒ 엔진과 **같은 번호**를 유지
+#    · kyverno-custom-policies.yaml  ③ 우리가 만든 ClusterPolicy       (sync-wave 5)
+#                                      uniform ⇒ `main` 핀이라 나눌 버전이 없다
+#
+# **이 저장소에서 staged는 Kyverno뿐이다.** 노드와 트래픽을 다루는 컨트롤러는 전부 관리형으로
+#    받아(NAP·App Routing) GitOps 계층에 없고, 조립한 것 중 버전 핀을 가진 것이 엔진과 PSS
+#    정책 둘뿐이다. 엔진은 admission webhook 이라 깨지면 그 클러스터의 **모든 배포가 막힌다**
+#    ⇒ 비운영에서 먼저 확인하고 승격한다.
+#    ⛔ **①과 ②는 같은 번호로만 릴리스된다 ⇒ 한쪽만 올리지 않는다.** helm index 실측:
+#       3.x stable 에서 kyverno 59개 · kyverno-policies 51개, 공통 51개이고 policies 단독
+#       릴리스는 **0개**다. 승격은 nonprd 둘을 먼저 올려 검증한 뒤 prd 둘을 같은 값으로 올린다.
+# ─────────────────────────────────────────────────────────────────────────────
 #
 # 1. 차트 버전은 AWS와 같은 3.8.2로 고정한다(최신 3.9.0이 아니다) — 실측 결과 3.9.0의
 #    kyverno-policies는 PSS 정책을 policies.kyverno.io/v1beta1 ValidatingPolicy(신규 CEL
@@ -46,15 +59,19 @@
 apiVersion: argoproj.io/v1alpha1
 kind: ApplicationSet
 metadata:
-  name: kyverno
+  # ⚠️ 돌고 있는 클러스터가 있을 때 이 이름을 바꾸지 않는다. 바꾸면 이 ApplicationSet이 삭제된
+  #    것으로 처리되고, 그것이 만든 Application이 ownerReference를 따라 지워지면서 finalizer가
+  #    **엔진 실물까지 prune한다.** 정리할 수 있는 시점은 전면 철거 이후, seed 이전뿐이다.
+  name: kyverno-prd
   namespace: argocd
 spec:
   generators:
     - clusters:
         selector:
-          matchExpressions:
-            - key: environment
-              operator: Exists
+          # staged 전파 — prd 티어. 아래 nonprd 블록과의 `targetRevision` 차이가 승격 지점을
+          # 기록한다. ②(kyverno-policies.yaml)와 **같은 번호**를 유지한다.
+          matchLabels:
+            tier: prd
   template:
     metadata:
       name: '{{name}}-kyverno'
@@ -86,45 +103,50 @@ spec:
           - ServerSideApply=true
 ---
 # ────────────────────────────────────────────────────────────────────────────
-# ② PSS 정책(ClusterPolicy 11개) — 계층 2(플랫폼 GitOps)가 소유하는 정책
+# ①-nonprd 엔진 — staged 전파의 nonprd 티어
+#
+# 🔑 위 ①-prd 블록과 이 블록의 `targetRevision` 차이가 **승격이 어디까지 갔는지**를 저장소에
+#    기록한다. 다르면 진행 중, 같아지면 끝난 것이다.
+#
+# ⚠️ 그 티어의 클러스터가 아직 없으면 대상이 0개가 된다. 사고가 아니라 **빈 슬롯**이고,
+#    cluster Secret이 tier=nonprd로 등록되는 순간 자동 팬아웃된다. ArgoCD는 대상 0개 팬아웃을
+#    오류로 보고하지 않으므로, 0이 의도인지 사고인지는 등록된 cluster Secret의 `tier` 값을 세어
+#    구분한다(어느 쪽 값도 아닌 클러스터가 있으면 사고다).
+#
+# ⚠️ **클러스터 등록 시 매칭 라벨을 빠뜨리지 않는다.** `environment`와 `tier`를 둘 다 붙이고,
+#    Karpenter NodePool을 받을 클러스터면 `addon-karpenter`도 함께 붙인다. teardown은 매칭
+#    라벨을 먼저 떼어낸 뒤 삭제하는 절차라, git 이력의 마지막 cluster-secret을 그대로 되살리면
+#    라벨이 빠진 채 등록된다 ⇒ 그 상태로는 Application이 **하나도** 생기지 않는다.
+#
+# ⛔ **①-prd 와 함께 고친다.** 네임스페이스·ServerSideDiff·helm values 결정은 위 블록이
+#    소유하고 여기서는 중복하지 않는다. 값이 갈려야 하는 것은 `targetRevision` 하나뿐이다.
 # ────────────────────────────────────────────────────────────────────────────
 apiVersion: argoproj.io/v1alpha1
 kind: ApplicationSet
 metadata:
-  name: kyverno-policies
+  name: kyverno-nonprd
   namespace: argocd
 spec:
   generators:
     - clusters:
         selector:
-          matchExpressions:
-            - key: environment
-              operator: Exists
+          matchLabels:
+            tier: nonprd
   template:
     metadata:
-      name: '{{name}}-kyverno-policies'
+      name: '{{name}}-kyverno'
       finalizers:
         - resources-finalizer.argocd.argoproj.io
       annotations:
-        argocd.argoproj.io/sync-wave: "5"
-        # ①과 같은 원인(ClusterPolicy openAPI 스키마의 default:를 apiserver가 채움) —
-        # AWS 원본과 동일 근거.
+        argocd.argoproj.io/sync-wave: "0"
         argocd.argoproj.io/compare-options: ServerSideDiff=true
     spec:
       project: platform
       source:
         repoURL: https://kyverno.github.io/kyverno/
-        chart: kyverno-policies
+        chart: kyverno
+        # 승격 대기 중에는 이 값이 prd 보다 앞선다. ②-nonprd 와 **같은 번호**를 유지한다.
         targetRevision: 3.8.2
-        helm:
-          parameters:
-            # AWS 원본과 동일 결정: Audit(차트 기본, 유지) + Ignore(Fail에서 변경) —
-            # "정책 위반 시 막지 않기로 했으면서 Kyverno 장애 시 전부 막는" 비정합을 없앤다.
-            # background:true(차트 기본)라 웹훅을 놓쳐도 백그라운드 스캔이 PolicyReport를
-            # 만든다 — 잃는 것은 실시간성뿐이다.
-            - name: failurePolicy
-              value: Ignore
-        # ⛔ validationFailureAction을 적지 않는다 — Audit이 차트 기본값이다.
       destination:
         server: '{{server}}'
         namespace: kyverno
@@ -133,47 +155,5 @@ spec:
           prune: true
           selfHeal: true
         syncOptions:
-          - SkipDryRunOnMissingResource=true
-          - ServerSideApply=true
----
-# ────────────────────────────────────────────────────────────────────────────
-# ③ 커스텀 정책 — NodePool 자원 요구사항 강제 (계층 2가 직접 소유하는 정책)
-# ────────────────────────────────────────────────────────────────────────────
-apiVersion: argoproj.io/v1alpha1
-kind: ApplicationSet
-metadata:
-  name: kyverno-custom-policies
-  namespace: argocd
-spec:
-  generators:
-    - clusters:
-        selector:
-          matchExpressions:
-            - key: environment
-              operator: Exists
-  template:
-    metadata:
-      name: '{{name}}-kyverno-custom-policies'
-      finalizers:
-        - resources-finalizer.argocd.argoproj.io
-      annotations:
-        argocd.argoproj.io/sync-wave: "5"
-        argocd.argoproj.io/compare-options: ServerSideDiff=true
-    spec:
-      project: platform
-      source:
-        # 이 저장소가 직접 소유하는 정책 — 로컬 helm 차트(Chart.yaml 존재)라서 root-app의
-        # 최상위 Directory 스캔에서 제외된다(AWS 원본과 동일 규약, Chart.yaml 헤더 참조).
-        repoURL: https://github.com/skax-ca/aks-platform-gitops.git
-        targetRevision: main
-        path: addons/kyverno/custom-policies
-      destination:
-        server: '{{server}}'
-        namespace: kyverno
-      syncPolicy:
-        automated:
-          prune: true
-          selfHeal: true
-        syncOptions:
-          - SkipDryRunOnMissingResource=true
+          - CreateNamespace=true
           - ServerSideApply=true
