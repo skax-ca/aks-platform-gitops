@@ -1,16 +1,10 @@
 #!/usr/bin/env bash
 #
-# ⛔ 이 파일의 SSOT 는 이 저장소다. 사본이 아니다.
-#    이전에는 #V# 배너를 달고 iac-module-library 의 scripts/argocd-seed.sh 를 가리켰는데,
-#    그 파일은 문서 재구성 때 삭제돼 포인터가 끊겨 있었다. 배너가 스스로 재검토를 요청한
-#    항목이고, 여기서 닫는다.
-#    ⇒ 고칠 일이 생기면 여기서 고친다. 다른 저장소로 복사하지 않는다.
-#    ⚠️ eks-platform-gitops 의 같은 파일과 형제가 아니다. 클라우드마다 독립이고 실제로
-#       갈리는 값이 있다(--help 의 저장소 경로·클러스터 디렉토리 예시).
-#
 # argocd-seed.sh — self-managed ArgoCD 부트스트랩 seed (workbench에서 사람이 실행)
 #
 # 절차: aks-reference-infra 의 docs/hub-lifecycle.md.
+# GH_APP_* 세 값을 발급하고 private key 를 workbench 로 나르는 법은
+# eks-reference-infra 의 scripts/README.md. 이 스크립트는 그 값들이 이미 있다고 전제한다.
 # self-managed ArgoCD 선택 근거: iac-module-library 의
 # docs/architectures/gitops-hub-spoke/azure/README.md
 #
