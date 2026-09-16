@@ -26,7 +26,7 @@
 #       dependencies 가 없고, 정책 차트가 요구하는 것은 엔진 app 버전의 **하한**이다.
 #       helm index 실측: 3.x stable 에서 kyverno 59개 · kyverno-policies 51개, 정책 단독은
 #       **0개**이고 **엔진 단독이 8개**다(전부 유지보수 라인 3.0·3.2·3.3·3.4 의 꼬리이고,
-#       현행 라인 3.5~3.9 는 완전 일치). ⇒ 그 라인에 짝이 없는 엔진 패치는 **엔진만 올린다.**
+#       현행 라인 3.5~3.9 는 일치). ⇒ 그 라인에 짝이 없는 엔진 패치는 **엔진만 올린다.**
 #       보안 백포트가 이 형태로 온다. 라인을 넘는 승격은 nonprd 둘을 먼저 올려 검증한 뒤
 #       prd 둘을 같은 값으로 올린다. 근거 전문은 iac-module-library 의
 #       docs/architectures/gitops-hub-spoke/gitops.md 가 갖는다.
