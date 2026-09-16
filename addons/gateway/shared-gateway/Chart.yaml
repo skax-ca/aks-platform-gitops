@@ -13,10 +13,10 @@ description: |
      때문**이다 — `+argocd:skip-file-rendering` 마커는 root-app뿐 아니라 "Directory
      타입으로 이 파일을 읽는 모든 Application"에서 렌더링을 막는다(README 참조). 이
      디렉토리를 평문 Directory 소스로 노출하면 addons/baseline/gateway.yaml의 전담
-     ApplicationSet 자신도 이 마커에 걸려 아무것도 렌더하지 못한다(2026-09-07 실측
-     확인 — Application이 Synced/Healthy로 보이지만 실제로는 리소스 0개, `argocd app
-     manifests`가 빈 출력을 반환했다). Chart.yaml이 있는 디렉토리를 전담 소스로
-     참조하면 Helm 타입으로 인식돼 이 함정을 피한다(karpenter-nodepool과 동일 이유,
-     다만 그쪽은 진짜 값 주입도 필요했다는 차이가 있다) — 차트 하나에 템플릿 하나.
+     ApplicationSet 자신도 이 마커에 걸려 아무것도 렌더하지 못한다 — 그때 Application은
+     Synced/Healthy로 보이고(리소스가 0개면 비교할 것이 없다) `argocd app manifests`만
+     빈 출력으로 드러난다. Chart.yaml이 있는 디렉토리를 전담 소스로 참조하면 Helm
+     타입으로 인식돼 이 함정을 피한다(karpenter-nodepool과 동일 이유) — 차트 하나에
+     템플릿 하나.
 type: application
 version: 0.1.0

@@ -8,7 +8,7 @@
 #    따로 둔다.
 #
 # 🔴 클러스터마다 값이 갈리지 않는데도 helm 차트로 만든 이유는 Chart.yaml 헤더 참조
-#    (root-app Directory 스캔 오탐지 방지, AWS 원본이 2026-08-18 실제로 겪은 사고).
+#    (root-app Directory 스캔 오탐지 방지).
 apiVersion: kyverno.io/v1
 kind: ClusterPolicy
 metadata:
@@ -45,11 +45,12 @@ spec:
                 - Pod
               # 이 정책이 실제로 지키려는 대상은 애플리케이션/플랫폼 addon 파드다 — AKS
               # 자신이 내부적으로 관리하는 시스템 네임스페이스는 매칭 단계에서 통째로
-              # 뺀다(2026-09-07 실측: App Routing의 Istio 구현체가 istiod Deployment를
-              # aks-istio-system에 만드는데 리소스 requests/limits를 선언하지 않아, Azure
-              # 내부 컨트롤러(user=aksService)의 재시도가 이 정책의 autogen Deployment
-              # 규칙에 매번 막혀 12시간 넘게 istiod가 뜨지 못했다 — Kyverno admission
-              # 로그로 확인). kube-system·aks-istio-system 둘 다 `kubernetes.azure.com/
+              # 뺀다. ⚠️ 빼지 않으면 관리형 addon이 뜨지 못한다: App Routing의 Istio
+              # 구현체는 istiod Deployment를 aks-istio-system에 만들면서 requests/limits를
+              # 선언하지 않아, Azure 내부 컨트롤러(user=aksService)의 재시도가 이 정책의
+              # autogen Deployment 규칙에 매번 막힌다(에러는 Kyverno admission 로그에만
+              # 남고 AKS 쪽은 조용히 재시도만 한다).
+              # kube-system·aks-istio-system 둘 다 `kubernetes.azure.com/
               # managedby: aks` 라벨을 공유한다 — Microsoft 공식 문서(learn.microsoft.com/
               # en-us/azure/aks/core-aks-concepts, concepts-managed-namespaces)가 명시하는
               # "AKS가 관리하는 네임스페이스"의 표준 마커다. 개별 네임스페이스 이름을

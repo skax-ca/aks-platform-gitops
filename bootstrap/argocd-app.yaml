@@ -1,12 +1,11 @@
 # ArgoCD 자기 관리 Application — "seed 1회 + 자기 관리"의 **2단계(흡수)**
 #
-# 설계: aks-reference-infra의 .omc/plans/aks-platform-gitops-scaffold.md
+# 설계: iac-module-library의 docs/architectures/gitops-hub-spoke/azure/
 #       (AWS 원본 skax-ca/eks-platform-gitops의 bootstrap/argocd-app.yaml 1:1 대응,
 #       원본 설계 근거는 그 저장소의 bootstrap/argocd-app.yaml 자체 주석 참고)
 #
-# seed(0단계)는 workbench에서 사람이 `helm install` 한다(이 저장소가 아직 argocd-seed.sh를
-#    실행할 workbench를 갖지 않음 - aks-reference-infra live/hub/workbench 별도 진행 중,
-#    2026-09-04 기준 미완료). 이 파일이 그 결과를 **흡수**하고, 그 순간부터 ArgoCD의 SSOT는
+# seed(0단계)는 workbench에서 사람이 bootstrap/argocd-seed.sh로 `helm install` 한다.
+#    이 파일이 그 결과를 **흡수**하고, 그 순간부터 ArgoCD의 SSOT는
 #    helm 릴리스가 아니라 **이 저장소**가 된다. 이후 업그레이드·values 변경은 전부 Git → pull이다.
 #    ⛔ helm CLI를 다시 쓰지 않는다.
 #
@@ -34,12 +33,11 @@ metadata:
   namespace: argocd
   # ⛔ finalizer를 넣지 않는다 — root-app과 같은 이유. 이 Application을 지울 때 ArgoCD 자신이
   #    cascade 삭제되면 seed를 처음부터 다시 밟아야 한다.
-  # ⛔ `compare-options: ServerSideDiff=true`를 여기 넣지 않는다 — AWS 원본이 넣었다가
-  #    철회한 이력이 있다(근거: `meta.helm.sh` 애노테이션 때문이 아니라 tracking-id 한 줄
-  #    차이였고, 그건 diff 전략으로 풀 수 있는 문제가 아니라 sync 한 번으로 해소되는 문제였다).
-  #    이 저장소는 아직 seed 자체를 실행하지 않아 같은 실측을 재현하지 않았다 —
-  #    **실제 seed 5단계(root Application 적용) 직후 `argocd app diff argocd --core`로
-  #    같은 검증을 반드시 반복할 것**(아래 syncPolicy 판단의 전제).
+  # ⛔ `compare-options: ServerSideDiff=true`를 여기 넣지 않는다 — 흡수 직후의 diff는
+  #    `meta.helm.sh` 애노테이션이 아니라 tracking-id 한 줄 차이이고, 그건 diff 전략으로
+  #    푸는 문제가 아니라 sync 한 번으로 해소되는 문제다(AWS 원본이 넣었다가 철회한 근거).
+  #    ⚠️ seed 5단계(root Application 적용) 직후 `argocd app diff argocd --core`로
+  #    **이 전제를 확인할 것** — 아래 syncPolicy 판단이 여기에 기댄다.
 spec:
   project: platform
 
@@ -79,14 +77,12 @@ spec:
     namespace: argocd
 
   # ───────────────────────────────────────────────────────────────────────────
-  # ⚠️ **2단계(`automated` 켜기)는 이 저장소가 아직 밟지 않은 단계다**
+  # ⚠️ **`automated`를 켜는 것은 흡수의 마지막 단계다 — 순서를 건너뛰지 않는다**
   #
-  #    AWS 원본은 1단계(automated 없이 비교만)로 diff가 tracking-id 한 줄뿐임을 실측한
-  #    뒤에만 2단계로 automated를 켰다. 이 파일은 그 최종 상태(2단계)를 미리 적어 두지만,
-  #    **실제 seed 실행 순서는 원본과 동일하게 밟는다**:
+  #    이 파일은 최종 상태(automated 켜짐)를 적어 두지만, 실제 seed에서는 두 단계로 밟는다:
   #      1) 이 파일을 automated 없이 먼저 apply → `argocd app diff argocd --core`로 diff 확인
   #      2) diff가 tracking-id류의 무해한 차이뿐임을 확인한 뒤에만 automated 블록 추가
-  #    ⇒ workbench 준비 후 seed 실행 시점에 이 spec을 1)의 형태로 임시 되돌려 검증할 것
+  #    ⇒ seed 실행 시점에 이 spec을 1)의 형태로 임시 되돌려 검증한다
   #       (커밋 순서는 verify → automated, AWS 원본과 동일).
   # ───────────────────────────────────────────────────────────────────────────
   syncPolicy:

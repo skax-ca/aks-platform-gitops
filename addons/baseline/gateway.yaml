@@ -1,6 +1,6 @@
 # Gateway API 실사용 계층 — ①baseline addon (전 클러스터)
 #
-# 설계: 2026-09-07, AGFC(Application Gateway for Containers)를 대체하며 신설.
+# 설계: AGFC(Application Gateway for Containers)가 아니라 AKS App Routing을 쓴다.
 #       AGFC는 frontend가 공인 FQDN만 지원하고 private/internal 옵션이 없어서
 #       (Microsoft 공식 문서로 확정: "Private IP addresses aren't currently supported",
 #       learn.microsoft.com/en-us/azure/application-gateway/for-containers/
@@ -50,8 +50,8 @@ spec:
     #
     # 🔴 이 파일 자체에 그 마커 문자열을 그대로 적지 않는다 — 판정이 파일 전체
     # 문자열 포함 검사라, 여기 적으면 이 ApplicationSet 자신이 root-app 스캔에서
-    # 빠져 클러스터에서 통째로 pruned된다(2026-09-07 바로 이 문장을 쓰다가 실제로
-    # 재현·수정한 사고 — root-app.yaml 자신이 이미 경고해 둔 함정이었다).
+    # 빠져 클러스터에서 통째로 pruned된다. 주석에 적어도 걸린다(root-app.yaml이
+    # 자기 자신에 대해 경고해 둔 것과 같은 함정이다).
     - clusters:
         selector:
           matchExpressions:

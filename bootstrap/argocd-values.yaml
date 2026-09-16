@@ -1,6 +1,6 @@
 # ArgoCD helm values — seed 0단계의 입력이자, 이후 자기 관리(self-management)의 SSOT
 #
-# 설계: aks-reference-infra의 .omc/plans/aks-platform-gitops-scaffold.md
+# 설계: iac-module-library의 docs/architectures/gitops-hub-spoke/azure/
 #       (AWS 원본 skax-ca/eks-platform-gitops의 bootstrap/argocd-values.yaml 1:1 대응)
 # chart: argo-cd 10.3.0 (appVersion v3.5.0) — 정확 핀, AWS 원본과 동일 버전
 #
@@ -18,10 +18,10 @@
 # ─────────────────────────────────────────────────────────────────────────────
 
 # ⛔ **AWS 원본에 있던 `global.tolerations`(workload-class=system taint 우회)는 여기 없다
-#    — 원본에 없는 항목을 빼먹은 게 아니라 실측으로 확인한 차이다.**
+#    — 빠뜨린 것이 아니라 대응할 taint가 없어서다.**
 #    `az aks show -g rg-demo-hub-krc-workload-01 -n aks-demo-hub-krc-main-01
-#    --query "agentPoolProfiles[].nodeTaints"`로 확인(2026-09-04): 이 hub 클러스터의
-#    유일한 노드풀(npsystem)은 nodeTaints가 null이다 — AWS hub가 쓰는 system 관리형
+#    --query "agentPoolProfiles[].nodeTaints"`가 null을 돌려준다: 이 hub 클러스터의
+#    유일한 노드풀(npsystem)에는 taint가 없다 — AWS hub가 쓰는 system 관리형
 #    노드그룹의 NoSchedule taint에 대응하는 구성이 이 클러스터엔 없다(live/hub/aks/main.tf가
 #    추가 node_pool을 정의하지 않음, default_node_pool 하나뿐). taint가 생기면(추가
 #    node_pool 도입 등) 그때 이 값을 추가한다 — 지금 추가하면 죽은 설정이다.
@@ -41,7 +41,6 @@ notifications:
 
 # controller·server를 hub ArgoCD Workload Identity(aks-reference-infra의
 # live/hub/vwan이 만든 UAMI, client-id는 그 root의 output)로 federate한다.
-#   설계: aks-reference-infra의 .omc/plans/dev-gitops-registration.md(6.5차 패치)
 #   annotations(ServiceAccount)·podLabels(Pod) 둘 다 있어야 웹훅이 토큰 파일을
 #   주입한다 — 하나만 있으면 조용히 무동작이다(argo-helm 10.3.0 values.yaml 스키마
 #   확인, controller.serviceAccount.annotations + controller.podLabels 조합).

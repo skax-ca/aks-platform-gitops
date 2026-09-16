@@ -1,6 +1,6 @@
 # 플랫폼 AppProject — 계층 2(플랫폼 GitOps)의 가드레일
 #
-# 설계: aks-reference-infra의 .omc/plans/aks-platform-gitops-scaffold.md 1-2절
+# 설계: iac-module-library의 docs/architectures/gitops-hub-spoke/azure/
 #       (AWS 원본 skax-ca/eks-platform-gitops의 projects/platform.yaml 1:1 대응)
 # seed 순서 3단계 — 4·5단계(cluster Secret·root App)가 이 프로젝트를 참조하므로 반드시 먼저.
 #
@@ -25,11 +25,10 @@ spec:
   # addon을 추가할 때마다 그 chart repo를 여기 추가한다(addon마다 리뷰 지점).
   sourceRepos:
     # 이 저장소 — seed 매니페스트 + Gateway API 실사용 계층 로컬 매니페스트
-    # (addons/gateway/shared-gateway). 2026-09-07 AGFC를 대체하며 AKS App Routing
-    # Gateway API(Istio 기반, `--enable-app-routing-istio`)로 전환 — 이 addon은
-    # 컨트롤러가 100% AKS 관리형이라(경위는 addons/baseline/gateway.yaml 헤더 참조)
-    # 별도 chart repo를 추가할 필요가 없다. Gateway API CRD·GatewayClass(approuting-istio)
-    # 모두 AKS가 자동 생성한다 — 이 저장소가 sourceRepos에 새로 추가한 항목이 없다.
+    # (addons/gateway/shared-gateway). AKS App Routing Gateway API(Istio 기반,
+    # `--enable-app-routing-istio`)는 컨트롤러가 100% AKS 관리형이라(근거는
+    # addons/baseline/gateway.yaml 헤더) 별도 chart repo를 추가할 필요가 없다.
+    # Gateway API CRD·GatewayClass(approuting-istio) 모두 AKS가 자동 생성한다.
     - https://github.com/skax-ca/aks-platform-gitops.git
     # ── ArgoCD 자기 관리 ──
     # ArgoCD가 **자기 자신의 차트**를 읽는다. 이 줄이 없으면 bootstrap/argocd-app.yaml이
@@ -37,7 +36,7 @@ spec:
     - https://argoproj.github.io/argo-helm
     # ── Kyverno ──
     # 컨트롤러(kyverno)와 정책(kyverno-policies) 두 차트가 같은 repo에 있다(AWS 원본과
-    # 동일 구조) ⇒ 줄은 하나다. egress 확인 완료(2026-09-07 canary, index.yaml 200).
+    # 동일 구조) ⇒ 줄은 하나다. egress 확인 완료(canary, index.yaml 200).
     - https://kyverno.github.io/kyverno/
 
   # 등록된 클러스터만 허용. 새 클러스터 등록 시 여기에도 추가한다.
@@ -46,10 +45,10 @@ spec:
     - server: https://kubernetes.default.svc
       namespace: '*'
     # dev(spoke) AKS — private_cluster_public_fqdn_enabled=true로 얻은 공개 FQDN
-    # (일반 공개 DNS가 private IP를 직접 반환, aks-reference-infra
-    # .omc/plans/dev-gitops-registration.md "## 8차" 참고). 재생성 때마다 접미사가
-    # 바뀐다 - clusters/dev/.../cluster-secret.yaml의 server와 함께 갱신한다
-    # (2026-09-10 전체 철거→재구축 e2e 검증 중 이 값이 stale했던 걸 발견·정정).
+    # (일반 공개 DNS가 private IP를 직접 반환한다. 왜 공개 FQDN인가는 iac-module-library의
+    # docs/architectures/gitops-hub-spoke/azure/ 가 갖는다).
+    # ⚠️ 재생성 때마다 접미사가 바뀐다 - clusters/dev/.../cluster-secret.yaml의 server와
+    # 함께 갱신한다. 한쪽만 고치면 이 값이 stale해져 스포크 팬아웃이 조용히 막힌다.
     - server: https://aks-demo-dev-krc-main-01-vsj5lmr3.hcp.koreacentral.azmk8s.io:443
       namespace: '*'
 
@@ -60,7 +59,7 @@ spec:
   #    이미 cluster-admin이다 ⇒ apiserver 쪽에는 막는 층이 없고, **여기가 유일한 실질 가드레일**이다.
   #
   # ⚠️ 아래 목록은 Kyverno 컨트롤러 차트를 helm template로 직접 렌더해 확인한
-  #    cluster-scoped kind다(2026-09-04 canary). Gateway API(App Routing)는 컨트롤러
+  #    cluster-scoped kind다(canary). Gateway API(App Routing)는 컨트롤러
   #    자체가 AKS 관리형이라 이 프로젝트가 만드는 cluster-scoped 리소스가 없다 — 아래
   #    목록에 추가할 것이 없다(addons/baseline/gateway.yaml 헤더 참조).
   clusterResourceWhitelist:
@@ -74,17 +73,17 @@ spec:
     - { group: karpenter.sh, kind: NodePool }
     - { group: karpenter.azure.com, kind: AKSNodeClass }
     # CustomResourceDefinition은 ArgoCD 자기관리(bootstrap/argocd-app.yaml, argo-cd 차트의
-    #    argoproj.io CRD 3종 applications/applicationsets/appprojects)를 흡수하는 데 필요하다
-    #    (2026-09-04, 실제 seed 5단계 실행 중 InvalidSpecError로 발견 - "resource
-    #    apiextensions.k8s.io:CustomResourceDefinition is not permitted in project platform").
+    #    argoproj.io CRD 3종 applications/applicationsets/appprojects)를 흡수하는 데 필요하다.
+    #    빼면 seed 5단계가 InvalidSpecError로 막힌다 - "resource
+    #    apiextensions.k8s.io:CustomResourceDefinition is not permitted in project platform".
     #    ⚠️ AppProject의 clusterResourceWhitelist는 {group,kind} 단위로만 걸러 리소스
     #    이름으로는 더 좁힐 수 없다 - 이 프로젝트의 다른 Application도 임의 CRD를 만들 수
     #    있게 되는 게 이 완화의 대가다. 더 좁히려면 OPA/Kyverno 같은 별도 정책 계층이 필요.
     - { group: apiextensions.k8s.io, kind: CustomResourceDefinition }
     # Kyverno가 배포하는 정책 CR(kyverno-policies 업스트림 11개 + 이 저장소가 직접
     # 소유하는 커스텀 정책 1개, 둘 다 kyverno.io/v1). cluster-scoped다. 컨트롤러 차트
-    # 3.8.2를 helm template로 직접 렌더해 cluster-scoped kind가 CRD·ClusterRole·
-    # ClusterRoleBinding(전부 위에 이미 있음)뿐임을 실측 확인 — 추가로 필요한 건
+    # 3.8.2를 helm template로 직접 렌더한 cluster-scoped kind는 CRD·ClusterRole·
+    # ClusterRoleBinding(전부 위에 이미 있음)뿐이다 — 추가로 필요한 건
     # 이 정책 CR 하나뿐이다. ValidatingWebhookConfiguration은 컨트롤러가 런타임에
     # 동적 등록하고 렌더 결과에 없어 넣지 않는다(AWS 원본 확인과 동일 결론).
     - { group: kyverno.io, kind: ClusterPolicy }

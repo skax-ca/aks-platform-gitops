@@ -2,7 +2,7 @@
 #   ⚠️ 이 마커는 root-app(directory 소스)이 이 파일을 매니페스트로 읽지 않게 한다.
 #      root-app의 exclude로 하지 않는 이유는 README의 "root App 스캔에서 파일을 빼는
 #      방법" 절 참조(AWS 원본 skax-ca/eks-platform-gitops README와 동일 규약,
-#      addons/alb-controller/loadbalancer/Chart.yaml과 동일 패턴).
+#      addons/gateway/shared-gateway/Chart.yaml과 동일 패턴).
 apiVersion: v2
 name: karpenter-nodepool
 description: |
