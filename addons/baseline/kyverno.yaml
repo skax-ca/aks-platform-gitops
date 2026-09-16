@@ -14,7 +14,7 @@
 #    · kyverno.yaml (이 파일)        ① 엔진 helm. CRD 22개 동봉        (sync-wave 0)
 #                                      staged ⇒ `-prd` · `-nonprd` 두 블록
 #    · kyverno-policies.yaml         ② PSS 정책(업스트림 차트)         (sync-wave 5)
-#                                      staged ⇒ 엔진과 **같은 번호**를 유지
+#                                      staged ⇒ 엔진과 **같은 마이너 라인**을 유지
 #    · kyverno-custom-policies.yaml  ③ 우리가 만든 ClusterPolicy       (sync-wave 5)
 #                                      uniform ⇒ `main` 핀이라 나눌 버전이 없다
 #
@@ -22,9 +22,14 @@
 #    받아(NAP·App Routing) GitOps 계층에 없고, 조립한 것 중 버전 핀을 가진 것이 엔진과 PSS
 #    정책 둘뿐이다. 엔진은 admission webhook 이라 깨지면 그 클러스터의 **모든 배포가 막힌다**
 #    ⇒ 비운영에서 먼저 확인하고 승격한다.
-#    ⛔ **①과 ②는 같은 번호로만 릴리스된다 ⇒ 한쪽만 올리지 않는다.** helm index 실측:
-#       3.x stable 에서 kyverno 59개 · kyverno-policies 51개, 공통 51개이고 policies 단독
-#       릴리스는 **0개**다. 승격은 nonprd 둘을 먼저 올려 검증한 뒤 prd 둘을 같은 값으로 올린다.
+#    ⛔ **①과 ②는 같은 마이너 라인에 둔다.** 차트 번호 일치가 아니다. 두 차트에 helm
+#       dependencies 가 없고, 정책 차트가 요구하는 것은 엔진 app 버전의 **하한**이다.
+#       helm index 실측: 3.x stable 에서 kyverno 59개 · kyverno-policies 51개, 정책 단독은
+#       **0개**이고 **엔진 단독이 8개**다(전부 유지보수 라인 3.0·3.2·3.3·3.4 의 꼬리이고,
+#       현행 라인 3.5~3.9 는 완전 일치). ⇒ 그 라인에 짝이 없는 엔진 패치는 **엔진만 올린다.**
+#       보안 백포트가 이 형태로 온다. 라인을 넘는 승격은 nonprd 둘을 먼저 올려 검증한 뒤
+#       prd 둘을 같은 값으로 올린다. 근거 전문은 iac-module-library 의
+#       docs/architectures/gitops-hub-spoke/gitops.md 가 갖는다.
 # ─────────────────────────────────────────────────────────────────────────────
 #
 # 1. 차트 버전은 AWS와 같은 3.8.2로 고정한다(최신 3.9.0이 아니다) — 실측 결과 3.9.0의
@@ -69,7 +74,7 @@ spec:
     - clusters:
         selector:
           # staged 전파 — prd 티어. 아래 nonprd 블록과의 `targetRevision` 차이가 승격 지점을
-          # 기록한다. ②(kyverno-policies.yaml)와 **같은 번호**를 유지한다.
+          # 기록한다. ②(kyverno-policies.yaml)와 **같은 마이너 라인**을 유지한다.
           matchLabels:
             tier: prd
   template:
@@ -145,7 +150,7 @@ spec:
       source:
         repoURL: https://kyverno.github.io/kyverno/
         chart: kyverno
-        # 승격 대기 중에는 이 값이 prd 보다 앞선다. ②-nonprd 와 **같은 번호**를 유지한다.
+        # 승격 대기 중에는 이 값이 prd 보다 앞선다. ②-nonprd 와 **같은 마이너 라인**을 유지한다.
         targetRevision: 3.8.2
       destination:
         server: '{{server}}'
