@@ -1,51 +1,24 @@
 #!/usr/bin/env bash
-#V# ═══════════════════════════════════════════════════════════════════════════
-#V#  VENDORED COPY — ⛔ 이 파일을 편집하지 마시오.
-#V#
-#V#  SSOT : skax-ca/iac-module-library · scripts/argocd-seed.sh
-#V#  출처 : 0d342a04b2d62d7fbe73b7302219910960e04918  (2026-08-07)
-#V#  근거 : aks-reference-infra .omc/plans/aks-platform-gitops-scaffold.md 6절
-#V#         Follow-up 1(ArgoCD 자기관리 파일 vendoring) - AWS 원본
-#V#         skax-ca/eks-platform-gitops의 bootstrap/argocd-seed.sh가 이미 이 커밋을
-#V#         같은 방식으로 vendoring한 전례를 그대로 승계(스크립트 자체는 순수 kubectl/helm
-#V#         이라 클라우드 무관 - AWS 특화 로직 없음, 2026-09-04 원본 대조로 확인).
-#V#
-#V#  왜 사본이 여기 있나 — Azure workbench(aks-workbench-v0.1.0 소비, 사설 클러스터 접근
-#V#  환경)는 이 저장소가 아니라 aks-reference-infra의 live/hub/workbench가 별도 세션에서
-#V#  구축 중이며 2026-09-04 기준 미완료다. workbench가 준비되면 이 저장소를 clone하는
-#V#  것만으로 매니페스트와 스크립트가 함께 오도록 사본을 여기 둔다. 두 번째 배달
-#V#  메커니즘을 만들지 않는다.
-#V#
-#V#  ⚠️ 경쟁 SSOT가 아니라 vendoring이다. 구분 기준은 "어디를 고치는가" 하나다 —
-#V#     고칠 일이 생기면 **모듈 repo를 고치고 여기로 다시 복사**한다. 여기서 고치면 그때 drift다.
-#V#
-#V#  🔍 드리프트 검사 (모듈 repo 체크아웃에서, <gitops>는 이 저장소 경로):
-#V#     diff <(grep -v '^#V#' <gitops>/bootstrap/argocd-seed.sh) scripts/argocd-seed.sh
-#V#     ⇒ 이 배너를 뺀 나머지는 SSOT와 **바이트 단위로 같아야 한다.**
-#V#     배너 줄에 전부 #V# 접두를 둔 이유가 이것이다 — 검사를 한 줄로 끝내려고.
-#V#
-#V#  ⚠️ 이 vendoring 시점(2026-09-04)에 module-library 작업 트리에는 scripts/argocd-seed.sh가
-#V#     더 이상 없다(commit 962e481/845a96a의 docs/modules 재구성 중 이동·삭제된 것으로
-#V#     추정, git log로 확인) - 위 SHA로만 조회 가능하다. 재검토 필요: 이 스크립트를
-#V#     다시 vendoring할 일이 생기면 module-library에 먼저 복원할지, 이 사본을 새 SSOT로
-#V#     승격할지 그때 결정한다(AWS 원본 저장소도 같은 SHA 참조를 그대로 쓰고 있어 이
-#V#     저장소만의 문제가 아님).
-#V# ═══════════════════════════════════════════════════════════════════════════
+#
+# ⛔ 이 파일의 SSOT 는 이 저장소다. 사본이 아니다.
+#    이전에는 #V# 배너를 달고 iac-module-library 의 scripts/argocd-seed.sh 를 가리켰는데,
+#    그 파일은 문서 재구성 때 삭제돼 포인터가 끊겨 있었다. 배너가 스스로 재검토를 요청한
+#    항목이고, 여기서 닫는다.
+#    ⇒ 고칠 일이 생기면 여기서 고친다. 다른 저장소로 복사하지 않는다.
+#    ⚠️ eks-platform-gitops 의 같은 파일과 형제가 아니다. 클라우드마다 독립이고 실제로
+#       갈리는 값이 있다(--help 의 저장소 경로·클러스터 디렉토리 예시).
 #
 # argocd-seed.sh — self-managed ArgoCD 부트스트랩 seed (workbench에서 사람이 실행)
 #
-# 설계 SSOT:
-#   aks-reference-infra .omc/plans/aks-platform-gitops-scaffold.md (이 저장소의 소비 설계)
-#   AWS 원본 skax-ca/eks-platform-gitops의 bootstrap/argocd-seed.sh (1:1 대응 전례)
+# 절차: aks-reference-infra 의 docs/hub-lifecycle.md.
+# self-managed ArgoCD 선택 근거: iac-module-library 의
+# docs/architectures/gitops-hub-spoke/azure/README.md
 #
 # ⭐ 자기소멸(self-superseding) 원칙이 이 스크립트의 설계 제약이다.
 #    이 스크립트는 매니페스트를 **생성하지 않는다** — GitOps 저장소에 커밋된 파일을
 #    **그대로 apply**한다. 생성하면 커밋본과 바이트가 달라지고, 그 차이가 영구 드리프트로 남는다.
 #    그래서 --set도, 인라인 heredoc 매니페스트도 쓰지 않는다.
 #    ⚠️ 예외는 단 하나: repository Secret(2단계). private key를 담아 커밋할 수 없다.
-#
-# ⚠️ 이 repo는 배포하지 않는다. 이 스크립트는 **소비 프로젝트가 실행하는 절차**이며,
-#    여기서는 재사용 자산으로만 소유한다.
 #
 # ⚠️ bash 3.2 호환으로 쓴다 — macOS 기본 bash가 3.2이고(실측), 이 스크립트는 workbench
 #    뿐 아니라 팀원 노트북에서 --dry-run으로도 돌린다. 연상배열·mapfile·${var^^}를 쓰지 않는다.

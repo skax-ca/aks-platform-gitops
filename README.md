@@ -44,7 +44,7 @@ AWS 원본과 동일한 3계층 소유 모델에서 **계층 2만** 담당한다
 
 ```
 bootstrap/    # App-of-Apps root(자기소멸/self-superseding) + ArgoCD 자기 관리 매니페스트
-              #   + argocd-seed.sh(vendored, iac-module-library SSOT)
+              #   + argocd-seed.sh(seed 실행 스크립트. 이 저장소가 소유한다)
 clusters/hub/aks-demo-hub-krc-main-01/  # cluster Secret(라벨에 못 담는 값이 생기면 values.yaml도)
 projects/     # AppProject 가드레일 - platform.yaml
 addons/baseline/  # 전 클러스터 팬아웃 ApplicationSet(environment 라벨) - gateway.yaml 등
