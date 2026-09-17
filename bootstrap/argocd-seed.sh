@@ -155,7 +155,7 @@ fi
 if (( DRY_RUN )); then
   warn "dry-run 모드 — 아무것도 바꾸지 않는다"
   warn "검증하지 않는다 — ArgoCD CR은 CRD라 클라이언트 dry-run이 discovery API를 요구한다(오프라인 불가)"
-  warn "진짜 검증은 실제 실행 때 서버 dry-run이 한다. 여기서는 '무엇을 어디서 적용하는지'만 본다"
+  warn "검증은 실제 실행 때 서버 dry-run이 한다. 여기서는 '무엇을 어디서 적용하는지'만 본다"
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -235,7 +235,7 @@ if want 4; then apply_manifest 4 "cluster Secret"      "$CLUSTER_FILE"; fi
 if want 5; then apply_manifest 5 "root Application"    "$ROOTAPP_FILE"; fi
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 검증 — "적용됐다"와 "동작한다"는 다르다
+# 검증 — apply 가 성공해도 root App 이 저장소를 읽었는지는 따로 본다
 # ─────────────────────────────────────────────────────────────────────────────
 if (( ! DRY_RUN )) && want 5; then
   step "verify" "흡수 확인"

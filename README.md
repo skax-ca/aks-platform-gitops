@@ -3,7 +3,7 @@
 **읽는 사람**: 이 저장소의 매니페스트를 고치거나, 클러스터·addon을 새로 등록하는 사람.
 
 **오너**: GitHub org [`skax-ca`](https://github.com/skax-ca) 소속. 클러스터·IAM 문의는
-`aks-reference-infra` 쪽과 겹칠 수 있다.
+`aks-reference-infra`가 받는다.
 
 **플랫폼 GitOps monorepo(계층 2)** - ArgoCD가 pull로 reconcile하는 플랫폼 소관
 매니페스트 저장소. AWS 원본 [`eks-platform-gitops`](https://github.com/skax-ca/eks-platform-gitops)의
@@ -70,8 +70,8 @@ scripts/          # 주석 규칙 검사기(.py다 - 아래 "로컬 게이트" �
 
 `addons/<addon>/<dir>/`는 값을 주입할 일이 없으면 평문 매니페스트 디렉토리다. 이 저장소의
 셋(`gateway/shared-gateway`·`karpenter/nodepool`·`kyverno/custom-policies`)이 전부 그렇다.
-per-cluster 값을 CR에 넣어야 하면 helm 차트여야 한다 — ApplicationSet의 fasttemplate은
-Application spec에만 적용되고 git 경로 안의 파일에는 적용되지 않기 때문이다.
+per-cluster 값을 CR에 넣어야 하면 helm 차트여야 한다 — ArgoCD가 ApplicationSet의 fasttemplate을
+Application spec에서만 치환하고 git 경로 안의 파일에서는 치환하지 않기 때문이다.
 
 ## ApplicationSet 공통 규약
 
@@ -90,8 +90,7 @@ prune한다.** 정리할 수 있는 시점은 전면 철거 이후 seed 이전�
 ### staged 전파 — `-prd` · `-nonprd` 두 블록
 
 한 파일 안에 티어별 ApplicationSet 두 개를 둔다. 승격할 때 두 `targetRevision`을 나란히 읽어야
-하기 때문이고, 그 차이가 승격이 어디까지 갔는지를 저장소에 기록한다. 다르면 진행 중, 같으면 끝난
-것이다.
+하기 때문이다. 두 값이 다르면 승격이 진행 중이고, 같으면 끝난 것이다.
 
 **이 저장소에서 staged는 Kyverno뿐이다.** 노드와 트래픽을 다루는 컨트롤러를 전부 관리형으로
 받으므로(NAP·App Routing) 버전 핀을 가진 것이 엔진과 PSS 정책 둘뿐이다.

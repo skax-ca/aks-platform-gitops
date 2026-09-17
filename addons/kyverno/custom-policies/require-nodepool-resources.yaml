@@ -18,7 +18,7 @@ metadata:
       노드 메모리를 무제한으로 잠식해 다른 파드를 OOM으로 몰아낼 수 있다. 그래서
       requests(cpu·memory)와 memory limit을 필수로 요구한다.
       ⚠️ cpu limit은 의도적으로 요구하지 않는다 — CPU는 압축 가능한 자원이라 limit을
-      걸면 스로틀링으로 지연시간이 튀는 문제가 있다. 이는 업스트림 Kyverno best-practice
+      걸면 스로틀링으로 지연시간이 튄다. 이는 업스트림 Kyverno best-practice
       정책(require-requests-limits, kyverno.io/policies/best-practices)과 AWS EKS
       Best Practices Guide가 공통으로 권고하는 방향이고, Karpenter 코어를 공유하는 NAP에도
       동일하게 적용된다.
