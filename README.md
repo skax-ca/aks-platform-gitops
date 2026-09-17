@@ -32,8 +32,8 @@ AWS 원본과 동일한 3계층 소유 모델에서 **계층 2만** 담당한다
 | **2. 플랫폼 GitOps** | **helm addon · 클러스터 등록 · AppProject 가드레일** | **이 저장소** |
 | 3. 앱 GitOps | 비즈니스 워크로드 | 앱팀별 repo(범위 밖) |
 
-⛔ **`apps/` 디렉토리는 의도적으로 없다** - AWS 원본과 같은 이유(플랫폼 addon
-업그레이드는 fleet 전체에, 앱 배포는 한 팀에만 영향을 준다).
+⛔ **`apps/` 디렉토리는 의도적으로 없다.** 플랫폼 addon 업그레이드는 fleet 전체에, 앱 배포는 한
+팀에 영향을 준다 — 같은 저장소에 두면 리뷰어·릴리스 주기·blast radius가 섞인다.
 
 ## 레이아웃
 
@@ -70,7 +70,50 @@ scripts/          # 주석 규칙 검사기(.py다 - 아래 "로컬 게이트" �
 
 `addons/<addon>/<dir>/`는 값을 주입할 일이 없으면 평문 매니페스트 디렉토리다. 이 저장소의
 셋(`gateway/shared-gateway`·`karpenter/nodepool`·`kyverno/custom-policies`)이 전부 그렇다.
-AWS 원본은 EC2NodeClass·GatewayClass가 per-cluster 값을 받아 helm 차트인 것이 있다.
+per-cluster 값을 CR에 넣어야 하면 helm 차트여야 한다 — ApplicationSet의 fasttemplate은
+Application spec에만 적용되고 git 경로 안의 파일에는 적용되지 않기 때문이다.
+
+## ApplicationSet 공통 규약
+
+매니페스트마다 반복하지 않고 여기 한 번 적는다. 개별 파일 주석은 그 파일에만 참인 것만 갖는다.
+
+| 항목 | 규약 |
+|---|---|
+| 팬아웃 | cluster generator가 라벨이 맞는 cluster Secret마다 Application을 1개 만든다. ArgoCD 내장 `in-cluster`에는 Secret도 라벨도 없어 걸리지 않는다 — cluster Secret을 명시적으로 만드는 이유다 |
+| `finalizers` | `resources-finalizer.argocd.argoproj.io`를 template에 둔다. 없으면 Application CR을 지워도 그것이 만든 리소스가 클러스터에 orphan으로 남는다 |
+| cluster-scoped CR | NodePool·AKSNodeClass·ClusterPolicy는 cluster-scoped라 `destination.namespace`가 형식상 값이다 |
+
+⚠️ **돌고 있는 클러스터가 있을 때 ApplicationSet 이름을 바꾸지 않는다.** 이름이 바뀌면 삭제로
+처리되고, 그것이 만든 Application이 `ownerReference`를 따라 지워지면서 finalizer가 **실물까지
+prune한다.** 정리할 수 있는 시점은 전면 철거 이후 seed 이전뿐이다.
+
+### staged 전파 — `-prd` · `-nonprd` 두 블록
+
+한 파일 안에 티어별 ApplicationSet 두 개를 둔다. 승격할 때 두 `targetRevision`을 나란히 읽어야
+하기 때문이고, 그 차이가 승격이 어디까지 갔는지를 저장소에 기록한다. 다르면 진행 중, 같으면 끝난
+것이다.
+
+**이 저장소에서 staged는 Kyverno뿐이다.** 노드와 트래픽을 다루는 컨트롤러를 전부 관리형으로
+받으므로(NAP·App Routing) 버전 핀을 가진 것이 엔진과 PSS 정책 둘뿐이다.
+
+⛔ **두 블록을 함께 고친다.** 갈려도 되는 값은 `targetRevision` 하나다.
+
+⚠️ 그 티어의 클러스터가 없으면 대상이 0개가 된다. 사고가 아니라 **빈 슬롯**이고, cluster Secret이
+그 `tier`로 등록되는 순간 팬아웃된다. ArgoCD는 대상 0개를 오류로 보고하지 않으므로, 0이 의도인지
+사고인지는 등록된 cluster Secret의 `tier` 값을 세어 구분한다.
+
+## cluster Secret 라벨 계약
+
+ApplicationSet이 읽는 라벨이다. 빠지면 그 addon만 조용히 안 뜬다.
+
+| 라벨 | 읽는 쪽 | 값 |
+|---|---|---|
+| `environment` | baseline 팬아웃 전체 | `hub` · `dev` 등. 존재 자체가 매칭 조건이다 |
+| `tier` | Kyverno의 `-prd`/`-nonprd` 선택 | `prd` \| `nonprd` |
+| `addon-karpenter: enabled` | NodePool/AKSNodeClass 구독 | NAP을 켠 클러스터만 |
+
+⚠️ **teardown은 매칭 라벨을 먼저 뗀 뒤 Secret을 지운다.** git 이력의 마지막 cluster-secret을 그대로
+되살리면 라벨이 빠진 껍데기이고, 그 상태로는 Application이 하나도 생기지 않는다.
 
 ## 로컬 게이트 — 이 저장소의 유일한 강제 지점
 

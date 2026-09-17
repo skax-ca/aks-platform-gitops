@@ -1,28 +1,17 @@
-# Kyverno PSS 정책 — ①baseline addon (업스트림 kyverno-policies 차트, ClusterPolicy 11개)
+# Kyverno PSS 정책 — baseline addon (업스트림 kyverno-policies 차트, ClusterPolicy 11개).
 #
-# 설계: AWS 원본 skax-ca/eks-platform-gitops의 applicationsets/baseline/kyverno-policies.yaml과 같다.
+# ⛔ 엔진(kyverno.yaml)과 **같은 마이너 라인**을 유지한다. 차트 번호를 맞추는 것이 아니다.
+#    정책 내용만 보면 uniform 이 맞지만 엔진이 staged 라 이것도 따라간다 — 티어 안에서는 엔진과
+#    정책이 항상 같은 라인이고, 차이는 승격 구간에만 있다. 라인 안에서 엔진만 앞서는 것은 정상이다.
+# 🔴 3.9 로 올리면 이 차트가 렌더하는 kind 가 바뀐다(policyType 기본값). 선택지는 kyverno.yaml 의
+#    핀 주석이 갖는다. 이 값만 먼저 올리지 않는다.
 #
-# **Kyverno 파일 3개 중 ②다** — ① 엔진은 `kyverno.yaml`, ③ 커스텀 정책은
-#    `kyverno-custom-policies.yaml`. 파일이 나뉜 이유와 승격 순서는 `kyverno.yaml` 헤더가 갖는다.
-#
-# ⛔ **엔진(①)과 같은 마이너 라인을 유지한다.** 차트 번호를 맞추는 것이 아니다. 근거는
-#    `kyverno.yaml` 헤더가 갖는다.
-#    ⇒ 정책 **내용**만 보면 uniform이 맞지만, 엔진이 staged라 이것도 따라간다. 티어 **안에서는**
-#      엔진과 정책이 항상 같은 라인이고, 차이는 승격 구간에만 있다.
-#    ⚠️ 라인 안에서 엔진만 앞서는 것은 정상이다. 이 차트는 그 라인 최신 패치에 두면 된다
-#       (엔진 단독 릴리스 8건의 근거는 `kyverno.yaml` 헤더가 갖는다).
-#
-# 차트 3.8.2 고정 근거(3.9.0이 아닌 이유)는 `kyverno.yaml` 헤더 1번 항목이 갖는다.
-#
-# 🔴 Terraform 전제: 없다. ①과 같다.
+# 설계: iac-module-library의 docs/architectures/gitops-hub-spoke/gitops.md
 ---
-# ────────────────────────────────────────────────────────────────────────────
-# ②-prd PSS 정책 — staged 전파의 prd 티어
-# ────────────────────────────────────────────────────────────────────────────
+# prd 티어
 apiVersion: argoproj.io/v1alpha1
 kind: ApplicationSet
 metadata:
-  # ⚠️ 돌고 있는 클러스터가 있을 때 이 이름을 바꾸지 않는다(`kyverno.yaml` 헤더 참조).
   name: kyverno-policies-prd
   namespace: argocd
 spec:
@@ -38,25 +27,26 @@ spec:
         - resources-finalizer.argocd.argoproj.io
       annotations:
         argocd.argoproj.io/sync-wave: "5"
-        # ①과 같은 원인(ClusterPolicy openAPI 스키마의 default:를 apiserver가 채움) —
-        # AWS 원본과 동일 근거.
+        # 엔진 쪽과 같은 원인으로 이것이 없으면 영구 OutOfSync 다 — ClusterPolicy 스키마의
+        #    default 를 apiserver 가 채우고, 그 필드는 어느 매니저도 소유하지 않는다.
         argocd.argoproj.io/compare-options: ServerSideDiff=true
     spec:
       project: platform
       source:
         repoURL: https://kyverno.github.io/kyverno/
         chart: kyverno-policies
-        # ①-prd 와 같은 마이너 라인. 이 라인(3.8)은 양쪽에 같은 번호가 있다.
         targetRevision: 3.8.2
         helm:
           parameters:
-            # AWS 원본과 동일 결정: Audit(차트 기본, 유지) + Ignore(Fail에서 변경) —
-            # "정책 위반 시 막지 않기로 했으면서 Kyverno 장애 시 전부 막는" 비정합을 없앤다.
-            # background:true(차트 기본)라 웹훅을 놓쳐도 백그라운드 스캔이 PolicyReport를
-            # 만든다 — 잃는 것은 실시간성뿐이다.
+            # 차트 기본 Fail 에서 바꾼 유일한 값이다. failurePolicy 는 **웹훅에 닿지 못할 때**
+            #    무엇을 하는가이고, validationFailureAction(Audit, 차트 기본)은 **정책을 위반했을 때**
+            #    무엇을 하는가다. Audit + Fail 은 비정합이다 — 아무것도 막지 않기로 해 놓고 Kyverno 가
+            #    죽으면 전부 막는다. background 스캔이 PolicyReport 를 계속 만들어 잃는 것은 실시간성뿐이다.
+            #    ⚠️ Enforce 로 전환할 때 Fail 로 **함께** 올린다. 한쪽만 바꾸면 다시 비정합이다.
             - name: failurePolicy
               value: Ignore
-        # ⛔ validationFailureAction을 적지 않는다 — Audit이 차트 기본값이다.
+        # ⛔ validationFailureAction 을 적지 않는다. 차트 기본값 Audit 이 우리가 원하는 값이고,
+        #    기본값을 옮겨 적으면 차트를 올릴 때 그 줄이 조용히 낡는다.
       destination:
         server: '{{server}}'
         namespace: kyverno
@@ -68,13 +58,8 @@ spec:
           - SkipDryRunOnMissingResource=true
           - ServerSideApply=true
 ---
-# ────────────────────────────────────────────────────────────────────────────
-# ②-nonprd PSS 정책 — staged 전파의 nonprd 티어
-#
-# ⛔ **②-prd 와 함께 고친다.** failurePolicy 근거와 적지 않기로 한 값(validationFailureAction)은
-#    위 블록이 소유한다. 값이 갈려야 하는 것은 `targetRevision` 뿐이다.
-# ⛔ **①-nonprd 와 같은 마이너 라인을 유지한다.**
-# ────────────────────────────────────────────────────────────────────────────
+# nonprd 티어 — 규약은 README 「staged 전파」. 위 블록과 함께 고치고, 갈려도 되는 값은
+# targetRevision 하나다. ⛔ 엔진의 nonprd 와 같은 마이너 라인을 유지한다.
 apiVersion: argoproj.io/v1alpha1
 kind: ApplicationSet
 metadata:
@@ -99,11 +84,9 @@ spec:
       source:
         repoURL: https://kyverno.github.io/kyverno/
         chart: kyverno-policies
-        # ①-nonprd 와 같은 마이너 라인. 승격 대기 중에는 prd 보다 앞선다.
         targetRevision: 3.8.2
         helm:
           parameters:
-            # Audit + Fail 비정합을 피한다 — 근거 전문은 ②-prd 블록.
             - name: failurePolicy
               value: Ignore
       destination:

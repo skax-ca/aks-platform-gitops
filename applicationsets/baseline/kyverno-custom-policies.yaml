@@ -1,24 +1,12 @@
-# Kyverno 커스텀 정책 — ①baseline addon (이 저장소가 직접 소유하는 ClusterPolicy)
+# Kyverno 커스텀 정책 — baseline addon. 이 저장소가 직접 소유하는 ClusterPolicy 다.
 #
-# 설계: AWS 원본 skax-ca/eks-platform-gitops의 applicationsets/baseline/kyverno-custom-policies.yaml과
-#       같은 구조다. 강제 대상만 다르다(AWS는 Karpenter NodePool, 여기는 NAP NodePool).
+# 업스트림 정책(kyverno-policies.yaml)과 별도 Application 인 이유는 소유권이다. 그쪽은 차트 하나로
+#    source 가 고정돼 있어 새 정책을 주입할 수 없다.
+# uniform 인 이유: targetRevision 이 main 이라 승격할 버전이 없다. ⚠️ 그래서 양 티어가 같은 정책을
+#    본다 — 엔진 승격이 진행 중이면 이 정책이 두 엔진 버전 모두에서 유효해야 한다. 새 버전에서 생긴
+#    필드를 쓰려면 엔진 승격을 끝내고 커밋한다.
 #
-# **Kyverno는 파일 3개이고 이것이 ③이다** — ① 엔진은 `kyverno.yaml`, ② PSS 정책은
-#    `kyverno-policies.yaml`. 파일이 나뉜 이유는 `kyverno.yaml` 헤더가 갖는다.
-#
-# **②와 별도 Application 인 이유는 소유권이다.** ②는 업스트림 차트 하나로 source 가 고정돼
-#    있어 임의의 새 정책을 주입할 수 없다. 그래서 우리가 직접 만든 정책은 형제 Application 으로
-#    따로 둔다.
-#
-# **uniform 인 이유**: `targetRevision: main` 이라 승격할 버전이 없다. ①②가 staged 로 나뉘어도
-#    이 파일은 나누지 않는다.
-#    ⚠️ 그래서 **양 티어가 같은 정책을 본다.** ①의 승격이 진행 중일 때(nonprd 가 새 CRD, prd 가
-#       옛 CRD) 이 정책은 **두 엔진 버전 모두에서 유효해야** 한다. 새 버전에서 생긴 필드를 쓰려면
-#       ①②의 승격을 끝내고 커밋한다.
-#
-# ────────────────────────────────────────────────────────────────────────────
-# ③ 커스텀 정책 — NodePool 자원 요구사항 강제 (uniform)
-# ────────────────────────────────────────────────────────────────────────────
+# 설계: iac-module-library의 docs/architectures/gitops-hub-spoke/gitops.md
 apiVersion: argoproj.io/v1alpha1
 kind: ApplicationSet
 metadata:
@@ -42,8 +30,7 @@ spec:
     spec:
       project: platform
       source:
-        # 이 저장소가 직접 소유하는 정책 — 평문 매니페스트 디렉토리다. 그 디렉토리는 root-app의
-        # include 범위 밖이라 root App이 정책 파일을 읽을 일이 없다.
+        # 평문 매니페스트 디렉토리다 — 클러스터마다 갈리는 값이 없어 주입할 것이 없다.
         repoURL: https://github.com/skax-ca/aks-platform-gitops.git
         targetRevision: main
         path: addons/kyverno/custom-policies
