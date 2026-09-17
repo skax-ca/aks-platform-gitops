@@ -8,7 +8,7 @@
 # self-managed ArgoCD 선택 근거: iac-module-library 의
 # docs/architectures/gitops-hub-spoke/azure/README.md
 #
-# ⭐ 자기소멸(self-superseding) 원칙이 이 스크립트의 설계 제약이다.
+# 🔑 자기소멸(self-superseding) 원칙이 이 스크립트의 설계 제약이다.
 #    이 스크립트는 매니페스트를 **생성하지 않는다** — GitOps 저장소에 커밋된 파일을
 #    **그대로 apply**한다. 생성하면 커밋본과 바이트가 달라지고, 그 차이가 영구 드리프트로 남는다.
 #    그래서 --set도, 인라인 heredoc 매니페스트도 쓰지 않는다.
@@ -118,7 +118,7 @@ for c in kubectl helm; do
 done
 ok "kubectl · helm 존재"
 
-# ⭐ 자기소멸 원칙의 집행 — 저장소가 커밋 상태여야 한다.
+# 🔑 자기소멸 원칙의 집행 — 저장소가 커밋 상태여야 한다.
 #    dirty인 채로 seed하면 apply된 내용이 저장소 어디에도 없고, root App이 흡수한 순간
 #    selfHeal이 그것을 되돌린다. 증상은 "방금 넣은 설정이 사라진다"이고 원인을 가리키지 않는다.
 if git -C "$GITOPS_REPO_DIR" rev-parse --git-dir >/dev/null 2>&1; then
