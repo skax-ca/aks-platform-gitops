@@ -47,7 +47,7 @@ applicationsets/catalog/   # opt-in 카탈로그 ApplicationSet(cluster Secret �
 addons/<addon>/            # 위 ApplicationSet의 source가 읽는 내용물. root App은 읽지 않는다
 addons/gateway/shared-gateway/  #   Gateway 매니페스트(컨트롤러는 AKS 관리형이라 GatewayClass도 없다)
 addons/karpenter/nodepool/      #   NAP의 NodePool/AKSNodeClass CR 매니페스트
-addons/kyverno/custom-policies/ #   이 저장소가 소유하는 ClusterPolicy 매니페스트
+addons/kyverno/custom-policies/ #   이 저장소가 소유하는 ValidatingPolicy 매니페스트
 scripts/          # 주석 규칙 검사기(.py다 - 아래 "로컬 게이트" 절 참고)
 .githooks/        # pre-commit 훅
 ```
@@ -81,7 +81,7 @@ Application spec에만 적용되고 git 경로 안의 파일에는 적용되지 
 |---|---|
 | 팬아웃 | cluster generator가 라벨이 맞는 cluster Secret마다 Application을 1개 만든다. ArgoCD 내장 `in-cluster`에는 Secret도 라벨도 없어 걸리지 않는다 — cluster Secret을 명시적으로 만드는 이유다 |
 | `finalizers` | `resources-finalizer.argocd.argoproj.io`를 template에 둔다. 없으면 Application CR을 지워도 그것이 만든 리소스가 클러스터에 orphan으로 남는다 |
-| cluster-scoped CR | NodePool·AKSNodeClass·ClusterPolicy는 cluster-scoped라 `destination.namespace`가 형식상 값이다 |
+| cluster-scoped CR | NodePool·AKSNodeClass·ValidatingPolicy는 cluster-scoped라 `destination.namespace`가 형식상 값이다 |
 
 ⚠️ **돌고 있는 클러스터가 있을 때 ApplicationSet 이름을 바꾸지 않는다.** 이름이 바뀌면 삭제로
 처리되고, 그것이 만든 Application이 `ownerReference`를 따라 지워지면서 finalizer가 **실물까지

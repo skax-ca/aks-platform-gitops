@@ -1,9 +1,9 @@
-# 이 저장소가 직접 소유하는 ClusterPolicy. 업스트림 PSS 정책과 별도 Application 인 이유는
+# 이 저장소가 직접 소유하는 ValidatingPolicy. 업스트림 PSS 정책과 별도 Application 인 이유는
 # applicationsets/baseline/kyverno-custom-policies.yaml 헤더가 갖는다.
 #
 # 설계: iac-module-library의 docs/architectures/gitops-hub-spoke/gitops.md
-apiVersion: kyverno.io/v1
-kind: ClusterPolicy
+apiVersion: policies.kyverno.io/v1beta1
+kind: ValidatingPolicy
 metadata:
   name: require-nodepool-resources
   annotations:
@@ -23,69 +23,71 @@ metadata:
       Best Practices Guide가 공통으로 권고하는 방향이고, Karpenter 코어를 공유하는 NAP에도
       동일하게 적용된다.
 spec:
-  # ⚠️ Enforce 다 — Audit 으로 먼저 관찰하지 않고 바로 차단한다. failurePolicy 는 적지 않는다.
-  #    ClusterPolicy 기본값 Fail 이 Enforce 와 짝이 맞는 조합이다(업스트림 PSS 정책이
-  #    Audit + Ignore 로 짝을 맞춘 것과 같은 원칙, 반대 방향).
-  validationFailureAction: Enforce
-  background: true
-  rules:
-    - name: require-cpu-memory-requests-and-memory-limit
-      match:
-        any:
-          - resources:
-              kinds:
-                - Pod
-              # AKS 가 관리하는 네임스페이스를 통째로 뺀다. ⚠️ 빼지 않으면 관리형 addon 이 뜨지
-              # 못한다 — App Routing 의 istiod 는 requests/limits 를 선언하지 않아 Azure 내부
-              # 컨트롤러의 재시도가 이 정책에 매번 막히고, 에러는 Kyverno 로그에만 남는다.
-              # 이름 대신 라벨로 거르는 이유는 Azure 가 새 aks-*-system 네임스페이스로 관리형
-              # addon 을 내놓아도 같은 사고가 재발하지 않게 하기 위해서다.
-              # ⚠️ 두 라벨을 모두 건다(matchExpressions 는 AND 라 제외 범위만 넓어진다).
-              #    control-plane 은 AKS FAQ 가 "내부 AKS 네임스페이스"의 마커로 지목하며 이 selector
-              #    형태를 그대로 예시로 싣는다. managedby 는 공식 문서상 관리형 **컴포넌트**의 라벨이라
-              #    네임스페이스에도 붙는지가 문서로 확정되지 않는다 — 그래서 그것 하나에 기대지 않는다.
-              # exclude 가 아니라 match 에 두는 이유: exclude 쪽 namespaceSelector 가 무시되는
-              # Kyverno 버그 보고가 있다. match 쪽은 공식 문서 예제에 그대로 나오는 경로다.
-              namespaceSelector:
-                matchExpressions:
-                  - key: control-plane
-                    operator: DoesNotExist
-                  - key: kubernetes.azure.com/managedby
-                    operator: NotIn
-                    values:
-                      - aks
-      exclude:
-        any:
-          # ArgoCD 는 이 저장소가 직접 배포하는 플랫폼 컴포넌트라 위 라벨로 걸러지지 않는다.
-          # argo-cd 차트가 모든 컴포넌트를 resources: {} 로 두고 argocd-values.yaml 도 그 값을
-          # 채우지 않아서, 빼지 않으면 ArgoCD 자신의 재배포가 이 정책에 막힌다.
-          - resources:
-              namespaces:
-                - argocd
-      validate:
-        message: >-
-          NAP이 올바르게 스케줄링하려면 모든 컨테이너에 CPU/메모리 requests와
-          메모리 limit이 필요하다(cpu limit은 의도적으로 요구하지 않는다).
-        pattern:
-          spec:
-            containers:
-              - resources:
-                  requests:
-                    cpu: "?*"
-                    memory: "?*"
-                  limits:
-                    memory: "?*"
-            =(initContainers):
-              - resources:
-                  requests:
-                    cpu: "?*"
-                    memory: "?*"
-                  limits:
-                    memory: "?*"
-            =(ephemeralContainers):
-              - resources:
-                  requests:
-                    cpu: "?*"
-                    memory: "?*"
-                  limits:
-                    memory: "?*"
+  # ⚠️ Deny 다 — Audit 으로 먼저 관찰하지 않고 바로 차단한다. legacy 타입의 Enforce 에 해당하는
+  #    값이고 enum 에 Enforce 는 없다(Deny·Audit·Warn 셋뿐). failurePolicy 는 적지 않는다.
+  #    기본값 Fail 이 Deny 와 짝이 맞는 조합이다(업스트림 PSS 정책이 Audit + Ignore 로 짝을
+  #    맞춘 것과 같은 원칙, 반대 방향).
+  validationActions:
+    - Deny
+
+  matchConstraints:
+    # 업스트림 PSS 정책과 같은 모양이다 — pods 만 걸고 autogen 은 적지 않는다. 파드 컨트롤러
+    #    (Deployment·Job 등) 대응 규칙은 Kyverno 가 서버에서 생성한다.
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: [v1]
+        operations: [CREATE, UPDATE]
+        resources: [pods]
+    # AKS 가 관리하는 네임스페이스를 통째로 뺀다. ⚠️ 빼지 않으면 관리형 addon 이 뜨지
+    # 못한다 — App Routing 의 istiod 는 requests/limits 를 선언하지 않아 Azure 내부
+    # 컨트롤러의 재시도가 이 정책에 매번 막히고, 에러는 Kyverno 로그에만 남는다.
+    # 이름 대신 라벨로 거르는 이유는 Azure 가 새 aks-*-system 네임스페이스로 관리형
+    # addon 을 내놓아도 같은 사고가 재발하지 않게 하기 위해서다.
+    # ⚠️ 세 조건을 모두 건다(matchExpressions 는 AND 라 제외 범위만 넓어진다).
+    #    control-plane 은 AKS FAQ 가 "내부 AKS 네임스페이스"의 마커로 지목하며 이 selector
+    #    형태를 그대로 예시로 싣는다. managedby 는 공식 문서상 관리형 **컴포넌트**의 라벨이라
+    #    네임스페이스에도 붙는지가 문서로 확정되지 않는다 — 그래서 그것 하나에 기대지 않는다.
+    # 🔑 kubernetes.io/metadata.name 은 apiserver 가 모든 네임스페이스에 자동으로 붙이는 라벨이라
+    #    네임스페이스 이름으로 거르는 것과 같다. ArgoCD 자기 자신이 여기 있는 이유는 argo-cd
+    #    차트가 모든 컴포넌트를 resources: {} 로 두고 argocd-values.yaml 도 그 값을 채우지
+    #    않아서다 — 빼지 않으면 ArgoCD 자신의 재배포가 막힌다. excludeResourceRules 는
+    #    group/resource 단위라 네임스페이스를 뺄 수 없어서 이 selector 가 그 자리를 대신한다.
+    namespaceSelector:
+      matchExpressions:
+        - key: control-plane
+          operator: DoesNotExist
+        - key: kubernetes.azure.com/managedby
+          operator: NotIn
+          values:
+            - aks
+        - key: kubernetes.io/metadata.name
+          operator: NotIn
+          values:
+            - argocd
+
+  # ⚠️ 세 식은 AND 다 — 하나라도 false 면 차단한다. initContainers·ephemeralContainers 는
+  #    없을 수 있어 has() 로 먼저 거른다(legacy pattern 의 =(...) 조건부 앵커에 해당한다).
+  #    resources.requests·limits 는 map 이라 필드 존재는 has(), 키 존재는 in 으로 본다.
+  validations:
+    - expression: >-
+        object.spec.containers.all(c,
+          has(c.resources)
+          && has(c.resources.requests) && 'cpu' in c.resources.requests && 'memory' in c.resources.requests
+          && has(c.resources.limits) && 'memory' in c.resources.limits)
+      message: >-
+        NAP이 올바르게 스케줄링하려면 모든 컨테이너에 CPU/메모리 requests와
+        메모리 limit이 필요하다(cpu limit은 의도적으로 요구하지 않는다).
+    - expression: >-
+        !has(object.spec.initContainers) || object.spec.initContainers.all(c,
+          has(c.resources)
+          && has(c.resources.requests) && 'cpu' in c.resources.requests && 'memory' in c.resources.requests
+          && has(c.resources.limits) && 'memory' in c.resources.limits)
+      message: >-
+        initContainers에도 CPU/메모리 requests와 메모리 limit이 필요하다.
+    - expression: >-
+        !has(object.spec.ephemeralContainers) || object.spec.ephemeralContainers.all(c,
+          has(c.resources)
+          && has(c.resources.requests) && 'cpu' in c.resources.requests && 'memory' in c.resources.requests
+          && has(c.resources.limits) && 'memory' in c.resources.limits)
+      message: >-
+        ephemeralContainers에도 CPU/메모리 requests와 메모리 limit이 필요하다.
