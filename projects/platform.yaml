@@ -27,7 +27,7 @@ spec:
     # 이 저장소 — seed 매니페스트 + Gateway API 실사용 계층 로컬 매니페스트
     # (addons/gateway/shared-gateway). AKS App Routing Gateway API(Istio 기반,
     # `--enable-app-routing-istio`)는 컨트롤러가 100% AKS 관리형이라(근거는
-    # addons/baseline/gateway.yaml 헤더) 별도 chart repo를 추가할 필요가 없다.
+    # applicationsets/baseline/gateway.yaml 헤더) 별도 chart repo를 추가할 필요가 없다.
     # Gateway API CRD·GatewayClass(approuting-istio) 모두 AKS가 자동 생성한다.
     - https://github.com/skax-ca/aks-platform-gitops.git
     # ── ArgoCD 자기 관리 ──
@@ -61,12 +61,12 @@ spec:
   # ⚠️ 아래 목록은 Kyverno 컨트롤러 차트를 helm template로 직접 렌더해 확인한
   #    cluster-scoped kind다(canary). Gateway API(App Routing)는 컨트롤러
   #    자체가 AKS 관리형이라 이 프로젝트가 만드는 cluster-scoped 리소스가 없다 — 아래
-  #    목록에 추가할 것이 없다(addons/baseline/gateway.yaml 헤더 참조).
+  #    목록에 추가할 것이 없다(applicationsets/baseline/gateway.yaml 헤더 참조).
   clusterResourceWhitelist:
     - { group: "", kind: Namespace } # CreateNamespace=true(kyverno.yaml 등)가 생성
     - { group: rbac.authorization.k8s.io, kind: ClusterRole } # Kyverno 컨트롤러 RBAC
     - { group: rbac.authorization.k8s.io, kind: ClusterRoleBinding } # Kyverno 컨트롤러 RBAC
-    # AKS Node Auto-Provisioning(NAP)의 NodePool/AKSNodeClass CR(addons/catalog/karpenter.yaml).
+    # AKS Node Auto-Provisioning(NAP)의 NodePool/AKSNodeClass CR(applicationsets/catalog/karpenter.yaml).
     # 둘 다 cluster-scoped다(공식 예제 github.com/Azure/karpenter-provider-azure
     # examples/v1/general-purpose.yaml — metadata에 namespace 없음). 컨트롤러는 Azure
     # 관리형이라 이 프로젝트가 RBAC·Deployment 등을 별도로 만들 필요는 없다.

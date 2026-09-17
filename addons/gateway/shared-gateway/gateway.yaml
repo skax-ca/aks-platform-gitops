@@ -27,7 +27,7 @@ spec:
       # 서브넷에도 위임이 필요 없다 — AKS 클러스터 자신의 VNet(aks-node 서브넷이 속한
       # VNet)에 그대로 내부 LB가 뜬다. 이게 이 저장소가 AGFC 대신 App Routing을 택한
       # 핵심 이유다 — AGFC는 frontend가 공인 FQDN만 지원해 이 옵션 자체가 없었다
-      # (Microsoft 공식 문서로 확정, addons/baseline/gateway.yaml 헤더 참고).
+      # (Microsoft 공식 문서로 확정, applicationsets/baseline/gateway.yaml 헤더 참고).
       service.beta.kubernetes.io/azure-load-balancer-internal: "true"
   listeners:
     - name: http

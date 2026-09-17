@@ -1,6 +1,6 @@
 # Kyverno 엔진 — ①baseline addon (정책 엔진. 차트가 CRD 22개를 동봉한다)
 #
-# 설계: AWS 원본 skax-ca/eks-platform-gitops의 addons/baseline/kyverno.yaml 구조를 그대로
+# 설계: AWS 원본 skax-ca/eks-platform-gitops의 applicationsets/baseline/kyverno.yaml 구조를 그대로
 #       포팅하되, 아래 3가지는 이 클러스터의 사실이 달라 다르게 간다.
 #
 # **①baseline인 이유(AWS와 동일)**: 정책 엔진은 가드레일이고, 옵트인 가드레일은 가드레일이

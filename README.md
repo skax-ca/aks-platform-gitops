@@ -20,7 +20,7 @@ Azure 대응.
 | 갈림점 | AWS 원본 | 이 저장소(Azure) |
 |---|---|---|
 | GitOps 엔진 | self-managed ArgoCD | **self-managed ArgoCD**(관리형 확장은 Public Preview라 보류) |
-| L7 Ingress(ALBC 대응) | aws-load-balancer-controller(helm, baseline) | **AKS App Routing(Gateway API/Istio 기반, 관리형)**. AGFC(Application Gateway for Containers)는 frontend가 공인 FQDN만 지원해(private/internal 옵션 없음, Microsoft 공식 문서로 확정) 이 저장소의 "hub는 전부 private" 원칙과 부딪혀 쓰지 않는다. App Routing은 AKS가 컨트롤러·CRD·GatewayClass를 전부 관리(패치·마이너 업그레이드까지 AKS 클러스터 업그레이드에 맞춰 자동)하는 GA 경로다 — "AKS는 관리형 서비스를 적극 지원·활용한다"는 기조에 따라 자체 설치형(Envoy Gateway 등) 대신 이쪽을 택했다. 내부 LB는 `Gateway.spec.infrastructure.annotations`의 표준 AKS Service annotation 하나로 끝난다(경위는 `addons/baseline/gateway.yaml` 헤더 참조) |
+| L7 Ingress(ALBC 대응) | aws-load-balancer-controller(helm, baseline) | **AKS App Routing(Gateway API/Istio 기반, 관리형)**. AGFC(Application Gateway for Containers)는 frontend가 공인 FQDN만 지원해(private/internal 옵션 없음, Microsoft 공식 문서로 확정) 이 저장소의 "hub는 전부 private" 원칙과 부딪혀 쓰지 않는다. App Routing은 AKS가 컨트롤러·CRD·GatewayClass를 전부 관리(패치·마이너 업그레이드까지 AKS 클러스터 업그레이드에 맞춰 자동)하는 GA 경로다 — "AKS는 관리형 서비스를 적극 지원·활용한다"는 기조에 따라 자체 설치형(Envoy Gateway 등) 대신 이쪽을 택했다. 내부 LB는 `Gateway.spec.infrastructure.annotations`의 표준 AKS Service annotation 하나로 끝난다(경위는 `applicationsets/baseline/gateway.yaml` 헤더 참조) |
 | addon 배포 원칙 | Terraform=IAM만, 컨트롤러=Helm, CR=GitOps | App Routing은 컨트롤러가 100% AKS 관리형(Helm 없음) — Terraform은 `aks-reference-infra`의 `live/hub/aks`가 `azapi_update_resource`로 `ingressProfile`을 켜는 것뿐이고, GitOps는 `Gateway` CR 하나만 얹는다. Karpenter·Kyverno는 원칙 그대로 유지 |
 
 ## 이 저장소가 다루는 것 / 다루지 않는 것
@@ -41,13 +41,14 @@ AWS 원본과 동일한 3계층 소유 모델에서 **계층 2만** 담당한다
 ```
 bootstrap/    # App-of-Apps root(자기소멸/self-superseding) + ArgoCD 자기 관리 매니페스트
               #   + argocd-seed.sh(seed 실행 스크립트. 이 저장소가 소유한다)
-clusters/hub/aks-demo-hub-krc-main-01/  # cluster Secret(라벨에 못 담는 값이 생기면 values.yaml도)
+clusters/hub/aks-demo-hub-krc-main-01/  # cluster Secret
 projects/     # AppProject 가드레일 - platform.yaml
-addons/baseline/  # 전 클러스터 팬아웃 ApplicationSet(environment 라벨) - gateway.yaml 등
-addons/gateway/shared-gateway/  # Gateway 매니페스트(컨트롤러는 AKS 관리형이라 GatewayClass도 없다)
-addons/karpenter/nodepool/      # NAP의 NodePool/AKSNodeClass CR 매니페스트
-addons/kyverno/custom-policies/ # 이 저장소가 소유하는 ClusterPolicy 매니페스트
-addons/catalog/   # opt-in 카탈로그(cluster Secret 라벨로 옵트인) - karpenter.yaml
+applicationsets/baseline/  # 전 클러스터 팬아웃 ApplicationSet(environment 라벨). root App이 읽는다
+applicationsets/catalog/   # opt-in 카탈로그 ApplicationSet(cluster Secret 라벨로 옵트인) - karpenter.yaml
+addons/<addon>/            # 위 ApplicationSet의 source가 읽는 내용물. root App은 읽지 않는다
+addons/gateway/shared-gateway/  #   Gateway 매니페스트(컨트롤러는 AKS 관리형이라 GatewayClass도 없다)
+addons/karpenter/nodepool/      #   NAP의 NodePool/AKSNodeClass CR 매니페스트
+addons/kyverno/custom-policies/ #   이 저장소가 소유하는 ClusterPolicy 매니페스트
 scripts/          # 주석 규칙 검사기(.py다 - 아래 "로컬 게이트" 절 참고)
 .githooks/        # pre-commit 훅
 ```
@@ -55,16 +56,15 @@ scripts/          # 주석 규칙 검사기(.py다 - 아래 "로컬 게이트" �
 ## root App이 읽는 범위 — `include` allow-list
 
 `bootstrap/root-app.yaml`은 `directory.include`에 적힌 경로만 매니페스트로 읽는다. 지금은
-`projects/`·`clusters/**/cluster-secret.yaml`·`addons/baseline/`·`addons/catalog/`·`bootstrap/`의
-두 Application 파일이다. **그 밖은 무엇이든 무시한다** — `addons/<addon>/<dir>/`의 CR
-매니페스트(전담 ApplicationSet이 따로 읽는다), helm values(`bootstrap/argocd-values.yaml`), 도구
-파일 전부.
+`projects/`·`clusters/**/cluster-secret.yaml`·`applicationsets/**`·`bootstrap/`의 두 Application
+파일이다. **그 밖은 무엇이든 무시한다** — `addons/` 전체(CR 매니페스트는 전담 ApplicationSet이
+따로 읽는다), helm values(`bootstrap/argocd-values.yaml`), 도구 파일 전부.
 
 이 저장소는 `exclude`와 `+argocd:skip-file-rendering` 마커를 쓰지 않는다. 기각 근거는
 `iac-module-library`의 `docs/architectures/gitops-hub-spoke/gitops.md` 「하지 않는 것」이 갖는다.
 
-매니페스트 디렉토리를 새로 만들면 `include`에 한 줄 더한다. 이미 있는 디렉토리 안에서 파일이
-늘고 주는 것은 `root-app.yaml`과 무관하다. ⚠️ **렌더가 깨지는 파일이 든 경로**를 `include`에
+매니페스트 디렉토리를 새로 만들면 `include`에 한 줄 더한다. `applicationsets/` 아래는 하위
+디렉토리까지 전부 읽으므로(`**`), 그 안에서 파일이 늘고 주는 것은 `root-app.yaml`과 무관하다. ⚠️ **렌더가 깨지는 파일이 든 경로**를 `include`에
 넣으면 그 spec이 적용된 뒤부터 자기 갱신이 멈춘다. root App은 자기 spec을 클러스터에 적용된
 옛 spec으로 렌더한 뒤에야 갱신하는데, 그 렌더가 깨지면 갱신에 이르지 못한다. 그 파일을 고치는
 커밋이 풀거나, `argocd-seed.sh --from 5 --to 5`로 커밋본 `root-app.yaml`을 손으로 다시 apply한다.
@@ -83,7 +83,7 @@ git config core.hooksPath .githooks
 brew install shellcheck        # 셸 게이트가 요구한다. 없으면 훅이 즉시 실패한다
 ```
 
-`.githooks/pre-commit`이 staged 파일 중 `addons/`·`projects/`·`clusters/`·`bootstrap/`의
+`.githooks/pre-commit`이 staged 파일 중 `applicationsets/`·`addons/`·`projects/`·`clusters/`·`bootstrap/`의
 `.yaml`/`.sh`, 저장소 `.md`, `scripts/*.py`, `.githooks/*`를 골라
 `scripts/validate-comment-conventions.py`에 넘긴다. 검사기는 주석에 **외부 참조**(문서 절
 번호·결정 식별자)와 **이력 서술**(날짜·세션 번호, 그리고 측정을 사건으로 적은 서술)이 있는지만

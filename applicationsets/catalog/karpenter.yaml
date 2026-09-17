@@ -1,6 +1,6 @@
 # Karpenter NodePool/AKSNodeClass — ②opt-in 카탈로그 addon (Node Auto-Provisioning CR)
 #
-# 설계: AWS 원본 skax-ca/eks-platform-gitops의 addons/baseline/karpenter.yaml
+# 설계: AWS 원본 skax-ca/eks-platform-gitops의 applicationsets/baseline/karpenter.yaml
 #       (② CR 섹션)을 대조해 포팅하되, 세 가지를 다르게 간다:
 #
 # 1. 컨트롤러 ApplicationSet이 없다 — AKS Node Auto-Provisioning(NAP)은 컨트롤러 자체를

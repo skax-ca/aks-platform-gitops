@@ -1,6 +1,6 @@
 # Kyverno PSS 정책 — ①baseline addon (업스트림 kyverno-policies 차트, ClusterPolicy 11개)
 #
-# 설계: AWS 원본 skax-ca/eks-platform-gitops의 addons/baseline/kyverno-policies.yaml과 같다.
+# 설계: AWS 원본 skax-ca/eks-platform-gitops의 applicationsets/baseline/kyverno-policies.yaml과 같다.
 #
 # **Kyverno 파일 3개 중 ②다** — ① 엔진은 `kyverno.yaml`, ③ 커스텀 정책은
 #    `kyverno-custom-policies.yaml`. 파일이 나뉜 이유와 승격 순서는 `kyverno.yaml` 헤더가 갖는다.

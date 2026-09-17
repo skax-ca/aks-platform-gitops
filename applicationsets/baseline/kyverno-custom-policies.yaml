@@ -1,6 +1,6 @@
 # Kyverno 커스텀 정책 — ①baseline addon (이 저장소가 직접 소유하는 ClusterPolicy)
 #
-# 설계: AWS 원본 skax-ca/eks-platform-gitops의 addons/baseline/kyverno-custom-policies.yaml과
+# 설계: AWS 원본 skax-ca/eks-platform-gitops의 applicationsets/baseline/kyverno-custom-policies.yaml과
 #       같은 구조다. 강제 대상만 다르다(AWS는 Karpenter NodePool, 여기는 NAP NodePool).
 #
 # **Kyverno는 파일 3개이고 이것이 ③이다** — ① 엔진은 `kyverno.yaml`, ② PSS 정책은
