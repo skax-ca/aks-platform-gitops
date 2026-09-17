@@ -42,8 +42,8 @@ spec:
     spec:
       project: platform
       source:
-        # 이 저장소가 직접 소유하는 정책 — 평문 매니페스트 디렉토리다. root-app의 include
-        # 범위 밖이라 root App이 이 파일을 읽을 일이 없다.
+        # 이 저장소가 직접 소유하는 정책 — 평문 매니페스트 디렉토리다. 그 디렉토리는 root-app의
+        # include 범위 밖이라 root App이 정책 파일을 읽을 일이 없다.
         repoURL: https://github.com/skax-ca/aks-platform-gitops.git
         targetRevision: main
         path: addons/kyverno/custom-policies

@@ -13,10 +13,6 @@ Azure 대응.
 `aks-reference-infra` 자체가 SSOT다. GitOps 엔진·Ingress addon 선정 같은 이
 저장소 고유의 설계 판단은 아래 표와 이 저장소 자신의 매니페스트 주석이 SSOT다.
 
-✅ **hub 클러스터에 배포 완료.** self-managed ArgoCD가 자기 자신을 포함해
-Synced/Healthy 상태다. 아래 「다음 단계」에 적힌 이월 항목은 이 파일 갱신 시점에
-전부 재확인한 것은 아니다. 실제 상태는 `argocd app list --core` 등으로 직접 조회한다.
-
 ---
 
 ## 확정된 설계
@@ -61,19 +57,17 @@ scripts/          # 주석 규칙 검사기(.py다 - 아래 "로컬 게이트" �
 `bootstrap/root-app.yaml`은 `directory.include`에 적힌 경로만 매니페스트로 읽는다. 지금은
 `projects/`·`clusters/**/cluster-secret.yaml`·`addons/baseline/`·`addons/catalog/`·`bootstrap/`의
 두 Application 파일이다. **그 밖은 무엇이든 무시한다** — `addons/<addon>/<dir>/`의 CR
-매니페스트(전담 ApplicationSet이 따로 읽는다), helm values, 도구 파일 전부.
+매니페스트(전담 ApplicationSet이 따로 읽는다), helm values(`bootstrap/argocd-values.yaml`), 도구
+파일 전부.
 
-이 저장소는 `exclude`와 `+argocd:skip-file-rendering` 마커를 쓰지 않는다. 둘 다 deny-list라
-저장소에 파일이 늘 때마다 **클러스터에 적용된 현재 spec**이 렌더할 범위가 넓어지고, root App은
-자기 spec을 옛 spec으로 렌더한 뒤에야 갱신하므로 옛 spec이 못 거르는 파일이 생기면 자기 갱신이
-막힌다. 마커는 판정이 파일 전체 문자열 포함 검사라 마커를 **설명하는 주석**이 있는 파일까지
-조용히 빠지는 문제가 하나 더 있다. 근거는 `iac-module-library`의
-`docs/architectures/gitops-hub-spoke/gitops.md` 「하지 않는 것」.
+이 저장소는 `exclude`와 `+argocd:skip-file-rendering` 마커를 쓰지 않는다. 기각 근거는
+`iac-module-library`의 `docs/architectures/gitops-hub-spoke/gitops.md` 「하지 않는 것」이 갖는다.
 
 매니페스트 디렉토리를 새로 만들면 `include`에 한 줄 더한다. 이미 있는 디렉토리 안에서 파일이
 늘고 주는 것은 `root-app.yaml`과 무관하다. ⚠️ **렌더가 깨지는 파일이 든 경로**를 `include`에
-넣으면 그 spec이 적용된 뒤부터 자기 갱신이 멈춘다. 그 파일을 고치는 커밋이 풀거나,
-`argocd-seed.sh --from 5 --to 5`로 커밋본 `root-app.yaml`을 손으로 다시 apply한다.
+넣으면 그 spec이 적용된 뒤부터 자기 갱신이 멈춘다. root App은 자기 spec을 클러스터에 적용된
+옛 spec으로 렌더한 뒤에야 갱신하는데, 그 렌더가 깨지면 갱신에 이르지 못한다. 그 파일을 고치는
+커밋이 풀거나, `argocd-seed.sh --from 5 --to 5`로 커밋본 `root-app.yaml`을 손으로 다시 apply한다.
 
 `addons/<addon>/<dir>/`는 값을 주입할 일이 없으면 평문 매니페스트 디렉토리다. 이 저장소의
 셋(`gateway/shared-gateway`·`karpenter/nodepool`·`kyverno/custom-policies`)이 전부 그렇다.
@@ -115,18 +109,5 @@ staged된 `.sh`에는 `bash -n`(문법)과 `shellcheck -x`(인용·확장·종�
 `eks-platform-gitops`가 같은 게이트를 같은 내용으로 갖는다. 한쪽을 고치면 다른 쪽도 함께
 고친다 — 드리프트를 검사하는 장치는 없다.
 
-## 알려진 미해결 항목
-
-- **GitHub App 설치 범위**: repository Secret은 기존 `skax-ca-gitops-reader` App(원래
-  `eks-platform-gitops`용)을 재사용한다 - 이 저장소를 GitHub App 설치(installation)
-  범위에 추가하는 작업이 seed 실행 전 필요.
-
-## 다음 단계
-
-1. `aks-reference-infra`의 `live/hub/workbench`(별도 세션 진행 중) 완료 대기 -
-   private cluster에서 `helm install`·`kubectl apply`를 실행할 환경.
-2. GitHub App(`skax-ca-gitops-reader`) 설치 범위에 이 저장소 추가.
-3. workbench 준비 후 `bootstrap/argocd-seed.sh --dry-run`으로 먼저 확인, 이어서
-   `--to 4`(자기 관리 흡수 이전 단계)까지 실행해 `argocd app diff argocd --core`로
-   diff를 확인한 뒤에만 `bootstrap/argocd-app.yaml`의 `automated` 블록을 최종
-   확정한다(AWS 원본과 동일 순서, 그 파일 자체 주석 참고).
+seed 절차(workbench 준비 · GitHub App 설치 범위 · `argocd-seed.sh` 실행 순서)는
+`aks-reference-infra`의 `docs/hub-lifecycle.md` 「GitOps 씨딩」이 소유한다.
