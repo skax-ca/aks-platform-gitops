@@ -9,19 +9,18 @@
 매니페스트 저장소. AWS 원본 [`eks-platform-gitops`](https://github.com/skax-ca/eks-platform-gitops)의
 Azure 대응.
 
-⛔ **설계 SSOT는 이 저장소가 아니다.** 클러스터·네트워킹·bootstrap 자격증명은
-`aks-reference-infra` 자체가 SSOT다. GitOps 엔진·Ingress addon 선정 같은 이
-저장소 고유의 설계 판단은 아래 표와 이 저장소 자신의 매니페스트 주석이 SSOT다.
+⛔ **설계 SSOT는 이 저장소가 아니다.** 규약을 바꾸려면 [`skax-ca/iac-module-library`의 `docs/`](https://github.com/skax-ca/iac-module-library/tree/main/docs)를 먼저 고친다. 문서 목록은 [`docs/README.md`](https://github.com/skax-ca/iac-module-library/blob/main/docs/README.md)가 소유한다. Azure에서 갈리는 판단(GitOps 엔진, L7 Ingress로 App Routing을 쓰고 AGFC·Envoy Gateway를 쓰지 않는 이유)은 [`docs/architectures/gitops-hub-spoke/azure/README.md`](https://github.com/skax-ca/iac-module-library/blob/main/docs/architectures/gitops-hub-spoke/azure/README.md)가 갖는다. 클러스터·네트워킹·bootstrap 자격증명은 `aks-reference-infra`가 SSOT다.
 
 ---
 
-## 확정된 설계
+## AWS 원본과 갈리는 것
+
+매니페스트 대부분은 AWS 원본과 같다. 이 저장소에서 달라지는 것은 아래 둘이다.
 
 | 갈림점 | AWS 원본 | 이 저장소(Azure) |
 |---|---|---|
-| GitOps 엔진 | self-managed ArgoCD | **self-managed ArgoCD**(관리형 확장은 Public Preview라 보류) |
-| L7 Ingress(ALBC 대응) | aws-load-balancer-controller(helm, baseline) | **AKS App Routing(Gateway API/Istio 기반, 관리형)**. AGFC(Application Gateway for Containers)는 frontend가 공인 FQDN만 지원해(private/internal 옵션 없음, Microsoft 공식 문서로 확정) 이 저장소의 "hub는 전부 private" 원칙과 부딪혀 쓰지 않는다. App Routing은 AKS가 컨트롤러·CRD·GatewayClass를 전부 관리(패치·마이너 업그레이드까지 AKS 클러스터 업그레이드에 맞춰 자동)하는 GA 경로다 — "AKS는 관리형 서비스를 적극 지원·활용한다"는 기조에 따라 자체 설치형(Envoy Gateway 등) 대신 이쪽을 택했다. 내부 LB는 `Gateway.spec.infrastructure.annotations`의 표준 AKS Service annotation 하나로 끝난다(경위는 `applicationsets/baseline/gateway.yaml` 헤더 참조) |
-| addon 배포 원칙 | Terraform=IAM만, 컨트롤러=Helm, CR=GitOps | App Routing은 컨트롤러가 100% AKS 관리형(Helm 없음) — Terraform은 `aks-reference-infra`의 `live/hub/aks`가 `azapi_update_resource`로 `ingressProfile`을 켜는 것뿐이고, GitOps는 `Gateway` CR 하나만 얹는다. Karpenter·Kyverno는 원칙 그대로 유지 |
+| L7 Ingress | aws-load-balancer-controller(helm, baseline) | AKS App Routing(Gateway API/Istio, AKS 관리형). 컨트롤러·CRD·GatewayClass는 `aks-reference-infra`의 `live/hub/aks`가 `ingressProfile`을 켜면 클러스터 안에 나타나고, 이 저장소는 `Gateway` CR 하나만 얹는다. 내부 LB는 `Gateway.spec.infrastructure.annotations`의 AKS Service annotation 하나다 |
+| addon 배포 원칙 | Terraform=IAM만, 컨트롤러=Helm, CR=GitOps | App Routing만 컨트롤러 단계가 Helm이 아니라 Terraform이다. Karpenter·Kyverno는 원칙 그대로다 |
 
 ## 이 저장소가 다루는 것 / 다루지 않는 것
 
