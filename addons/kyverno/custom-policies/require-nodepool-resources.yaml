@@ -23,10 +23,11 @@ metadata:
       Best Practices Guide가 공통으로 권고하는 방향이고, Karpenter 코어를 공유하는 NAP에도
       동일하게 적용된다.
 spec:
-  # ⚠️ Deny 다 — Audit 으로 먼저 관찰하지 않고 바로 차단한다. legacy 타입의 Enforce 에 해당하는
-  #    값이고 enum 에 Enforce 는 없다(Deny·Audit·Warn 셋뿐). failurePolicy 는 적지 않는다.
-  #    기본값 Fail 이 Deny 와 짝이 맞는 조합이다(업스트림 PSS 정책이 Audit + Ignore 로 짝을
-  #    맞춘 것과 같은 원칙, 반대 방향).
+  # ⚠️ Deny 다 — Audit 으로 먼저 관찰하지 않고 바로 차단한다. 쓸 수 있는 값은 Deny·Audit·Warn
+  #    셋뿐이라 Enforce 라고 적으면 apiserver 가 거부한다.
+  #    failurePolicy 는 적지 않는다. 기본값 Fail 이 Deny 와 짝이 맞는 조합이다 — 위반을 막기로
+  #    해 놓고 웹훅에 닿지 못할 때만 통과시키면 그 경로로 전부 새어 나간다(업스트림 PSS 정책이
+  #    Audit + Ignore 로 짝을 맞춘 것과 같은 원칙, 반대 방향).
   validationActions:
     - Deny
 
@@ -38,20 +39,22 @@ spec:
         apiVersions: [v1]
         operations: [CREATE, UPDATE]
         resources: [pods]
-    # AKS 가 관리하는 네임스페이스를 통째로 뺀다. ⚠️ 빼지 않으면 관리형 addon 이 뜨지
-    # 못한다 — App Routing 의 istiod 는 requests/limits 를 선언하지 않아 Azure 내부
-    # 컨트롤러의 재시도가 이 정책에 매번 막히고, 에러는 Kyverno 로그에만 남는다.
-    # 이름 대신 라벨로 거르는 이유는 Azure 가 새 aks-*-system 네임스페이스로 관리형
-    # addon 을 내놓아도 같은 사고가 재발하지 않게 하기 위해서다.
-    # ⚠️ 세 조건을 모두 건다(matchExpressions 는 AND 라 제외 범위만 넓어진다).
-    #    control-plane 은 AKS FAQ 가 "내부 AKS 네임스페이스"의 마커로 지목하며 이 selector
-    #    형태를 그대로 예시로 싣는다. managedby 는 공식 문서상 관리형 **컴포넌트**의 라벨이라
+    # 세 조건은 AND 라 하나씩 더할수록 정책이 닿는 범위가 좁아진다. 앞의 둘이 AKS 관리형
+    #    네임스페이스를, 마지막 하나가 ArgoCD 를 뺀다.
+    # ⚠️ 관리형을 빼지 않으면 그 addon 이 뜨지 못한다 — App Routing 의 istiod 는
+    #    requests/limits 를 선언하지 않아 Azure 내부 컨트롤러의 재시도가 매번 막히고, 에러는
+    #    Kyverno 로그에만 남는다. Azure 포털에는 addon 이 그냥 뜨지 않는 것으로 보인다.
+    #    이름을 나열하지 않고 라벨로 거르는 것은 Azure 가 새 aks-*-system 네임스페이스로 관리형
+    #    addon 을 내놓아도 같은 사고를 겪지 않으려는 것이다.
+    # ⚠️ ArgoCD 를 빼지 않으면 ArgoCD 자신의 재배포가 막힌다 — argo-cd 차트가 모든 컴포넌트를
+    #    resources: {} 로 두고 bootstrap/argocd-values.yaml 도 그 값을 채우지 않는다. Kyverno 가
+    #    ArgoCD 를 막으면 고칠 수단까지 함께 잃는 순환이다.
+    # control-plane 은 AKS FAQ 가 "내부 AKS 네임스페이스"의 마커로 지목하며 이 selector 형태를
+    #    그대로 예시로 싣는다. managedby 는 공식 문서상 관리형 **컴포넌트**의 라벨이라
     #    네임스페이스에도 붙는지가 문서로 확정되지 않는다 — 그래서 그것 하나에 기대지 않는다.
-    # 🔑 kubernetes.io/metadata.name 은 apiserver 가 모든 네임스페이스에 자동으로 붙이는 라벨이라
-    #    네임스페이스 이름으로 거르는 것과 같다. ArgoCD 자기 자신이 여기 있는 이유는 argo-cd
-    #    차트가 모든 컴포넌트를 resources: {} 로 두고 argocd-values.yaml 도 그 값을 채우지
-    #    않아서다 — 빼지 않으면 ArgoCD 자신의 재배포가 막힌다. excludeResourceRules 는
-    #    group/resource 단위라 네임스페이스를 뺄 수 없어서 이 selector 가 그 자리를 대신한다.
+    # 🔑 네임스페이스 제외를 excludeResourceRules 가 아니라 selector 로 거는 이유: 그 필드는
+    #    apiGroup·resource 단위라 네임스페이스를 받지 않는다. kubernetes.io/metadata.name 은
+    #    apiserver 가 모든 네임스페이스에 자기 이름으로 붙이는 라벨이라 이름으로 거르는 것과 같다.
     namespaceSelector:
       matchExpressions:
         - key: control-plane
@@ -65,9 +68,11 @@ spec:
           values:
             - argocd
 
-  # ⚠️ 세 식은 AND 다 — 하나라도 false 면 차단한다. initContainers·ephemeralContainers 는
-  #    없을 수 있어 has() 로 먼저 거른다(legacy pattern 의 =(...) 조건부 앵커에 해당한다).
-  #    resources.requests·limits 는 map 이라 필드 존재는 has(), 키 존재는 in 으로 본다.
+  # 세 식은 AND 다 — 하나라도 false 면 파드가 거부된다.
+  # ⚠️ initContainers·ephemeralContainers 를 has() 로 먼저 거르는 것이 선택이 아니다. 그 필드가
+  #    없는 파드에서 곧바로 .all() 을 부르면 CEL 이 런타임 에러를 내고, failurePolicy 기본값 Fail 이
+  #    그 에러를 거부로 바꾼다 — initContainer 를 쓰지 않는 파드가 전부 막힌다.
+  #    requests·limits 는 map 이라 필드가 있는지는 has(), 키가 있는지는 in 으로 본다.
   validations:
     - expression: >-
         object.spec.containers.all(c,
