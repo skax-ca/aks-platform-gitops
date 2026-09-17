@@ -42,8 +42,8 @@ spec:
     spec:
       project: platform
       source:
-        # 이 저장소가 직접 소유하는 정책 — 로컬 helm 차트(Chart.yaml 존재)라서 root-app의
-        # 최상위 Directory 스캔에서 제외된다(AWS 원본과 동일 규약, Chart.yaml 헤더 참조).
+        # 이 저장소가 직접 소유하는 정책 — 평문 매니페스트 디렉토리다. root-app의 include
+        # 범위 밖이라 root App이 이 파일을 읽을 일이 없다.
         repoURL: https://github.com/skax-ca/aks-platform-gitops.git
         targetRevision: main
         path: addons/kyverno/custom-policies

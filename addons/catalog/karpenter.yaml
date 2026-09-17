@@ -16,15 +16,12 @@
 #    남는다 — cluster Secret의 addon-karpenter: enabled 라벨로 옵트인한다
 #    (clusters/hub/*/cluster-secret.yaml의 라벨이 이 셀렉터의 짝이다).
 #
-# 3. 로컬 헬름 차트를 쓰지만 값이 없다 — AWS의 karpenter-nodepool 차트는 clusterName·
-#    nodeRole을 per-cluster로 주입해야 했지만(EC2NodeClass가 subnet/SG를 태그 selector로
-#    찾음), Azure AKSNodeClass는 그런 참조 필드 자체가 없다(공식 예제
+# 3. 헬름 차트가 아니라 평문 매니페스트 디렉토리다 — AWS의 karpenter-nodepool 차트는
+#    clusterName·nodeRole을 per-cluster로 주입해야 하지만(EC2NodeClass가 subnet/SG를 태그
+#    selector로 찾음), Azure AKSNodeClass는 그런 참조 필드 자체가 없다(공식 예제
 #    github.com/Azure/karpenter-provider-azure examples/v1/general-purpose.yaml —
 #    spec은 imageFamily 하나뿐, 네트워킹은 클러스터의 node_provisioning_profile이 이미
-#    소유한 VNet 통합에서 자동 상속). 그래도 Chart.yaml(로컬 헬름 차트)로 두는 이유는
-#    값 템플릿이 필요해서가 아니라, root-app의 directory 소스가 이 파일들을 자기
-#    매니페스트로 오인하지 않게 하는 이 저장소의 확립된 규약(Chart.yaml 존재 → Directory
-#    스캔에서 자동 제외, addons/gateway/shared-gateway와 동일 이유)을 따르기 위해서다.
+#    소유한 VNet 통합에서 자동 상속). 주입할 값이 없으니 템플릿도 없다.
 #
 # 🔴 Terraform 전제: aks-reference-infra의 live/hub/aks가 enable_karpenter=true로 NAP을 켠다.
 #    NAP은 cni_mode=overlay·workload_identity_enabled=true와 system 노드풀
@@ -33,7 +30,7 @@
 # 🔴 이 hub 클러스터는 network_data_plane=cilium이다(live/hub/aks/main.tf) — Karpenter가
 #    새로 띄우는 노드에도 Cilium daemonset이 붙기 전까지는 워크로드를 스케줄하면 안 된다.
 #    upstream 공식 예제(examples/v1/general-purpose.yaml)의 cilium 전용 라벨+startupTaint를
-#    그대로 가져온다(addons/karpenter/nodepool/templates/nodepool.yaml 참고).
+#    그대로 가져온다(addons/karpenter/nodepool/nodepool.yaml 참고).
 apiVersion: argoproj.io/v1alpha1
 kind: ApplicationSet
 metadata:

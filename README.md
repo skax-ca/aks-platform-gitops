@@ -48,47 +48,36 @@ bootstrap/    # App-of-Apps root(자기소멸/self-superseding) + ArgoCD 자기 
 clusters/hub/aks-demo-hub-krc-main-01/  # cluster Secret(라벨에 못 담는 값이 생기면 values.yaml도)
 projects/     # AppProject 가드레일 - platform.yaml
 addons/baseline/  # 전 클러스터 팬아웃 ApplicationSet(environment 라벨) - gateway.yaml 등
-addons/gateway/shared-gateway/  # Gateway 로컬 helm 차트(컨트롤러는 AKS 관리형이라 GatewayClass도
-                                #   없다 - per-cluster 값은 없지만 마커 메커니즘 때문에 helm이다,
-                                #   아래 "root App 스캔에서 파일을 빼는 방법" 절 참고)
-addons/karpenter/nodepool/      # NAP의 NodePool/AKSNodeClass CR 로컬 helm 차트
-addons/kyverno/custom-policies/ # 이 저장소가 소유하는 ClusterPolicy 로컬 helm 차트
+addons/gateway/shared-gateway/  # Gateway 매니페스트(컨트롤러는 AKS 관리형이라 GatewayClass도 없다)
+addons/karpenter/nodepool/      # NAP의 NodePool/AKSNodeClass CR 매니페스트
+addons/kyverno/custom-policies/ # 이 저장소가 소유하는 ClusterPolicy 매니페스트
 addons/catalog/   # opt-in 카탈로그(cluster Secret 라벨로 옵트인) - karpenter.yaml
 scripts/          # 주석 규칙 검사기(.py다 - 아래 "로컬 게이트" 절 참고)
 .githooks/        # pre-commit 훅
 ```
 
-## root App 스캔에서 파일을 빼는 방법 — 마커, `exclude` 아님
+## root App이 읽는 범위 — `include` allow-list
 
-`bootstrap/root-app.yaml`은 저장소 루트를 재귀로 스캔해 모든 `.yaml`/`.yml`/`.json`을
-매니페스트로 적용한다. `addons/karpenter/nodepool/`의 helm 템플릿(`{{ .Values.environment }}`
-등 미치환 문법)처럼 **매니페스트가 아닌 파일**은 스캔에서 빠져야 한다.
+`bootstrap/root-app.yaml`은 `directory.include`에 적힌 경로만 매니페스트로 읽는다. 지금은
+`projects/`·`clusters/**/cluster-secret.yaml`·`addons/baseline/`·`addons/catalog/`·`bootstrap/`의
+두 Application 파일이다. **그 밖은 무엇이든 무시한다** — `addons/<addon>/<dir>/`의 CR
+매니페스트(전담 ApplicationSet이 따로 읽는다), helm values, 도구 파일 전부.
 
-⛔ **`root-app.yaml`의 `exclude` 목록을 늘리지 않는다.** 대신 파일 안에
-`+argocd:skip-file-rendering` 마커를 넣는다(AWS 원본 `eks-platform-gitops`와 동일 규약).
+이 저장소는 `exclude`와 `+argocd:skip-file-rendering` 마커를 쓰지 않는다. 둘 다 deny-list라
+저장소에 파일이 늘 때마다 **클러스터에 적용된 현재 spec**이 렌더할 범위가 넓어지고, root App은
+자기 spec을 옛 spec으로 렌더한 뒤에야 갱신하므로 옛 spec이 못 거르는 파일이 생기면 자기 갱신이
+막힌다. 마커는 판정이 파일 전체 문자열 포함 검사라 마커를 **설명하는 주석**이 있는 파일까지
+조용히 빠지는 문제가 하나 더 있다. 근거는 `iac-module-library`의
+`docs/architectures/gitops-hub-spoke/gitops.md` 「하지 않는 것」.
 
-- 평문 YAML(`Chart.yaml`): `# +argocd:skip-file-rendering`
-- helm 템플릿: `{{- /* +argocd:skip-file-rendering … */ -}}`(파일 내용에는 남고 렌더
-  출력에는 안 남는다)
+매니페스트 디렉토리를 새로 만들면 `include`에 한 줄 더한다. 이미 있는 디렉토리 안에서 파일이
+늘고 주는 것은 `root-app.yaml`과 무관하다. ⚠️ **렌더가 깨지는 파일이 든 경로**를 `include`에
+넣으면 그 spec이 적용된 뒤부터 자기 갱신이 멈춘다. 그 파일을 고치는 커밋이 풀거나,
+`argocd-seed.sh --from 5 --to 5`로 커밋본 `root-app.yaml`을 손으로 다시 apply한다.
 
-🔴 **마커의 함정 — 마커를 설명하는 주석도 마커다.** 판정은 파일 전체의 단순 문자열 포함
-검사라, 주석이든 문서든 그 문자열이 한 번이라도 나타나면 파일 전체가 스캔에서 빠진다.
-`root-app.yaml` 자신의 주석에 마커 문자열을 그대로 적으면 **root-app이 자기 자신을
-스캔에서 제외**한다 — 에러 없이 조용히, 영구 `OutOfSync`로만 드러난다.
-
-⚠️ **마커는 root-app만 빼는 게 아니라 "Directory 타입으로 이 파일을 읽는 모든
-Application"에서 뺀다 — 전담 Application 자기 자신도 예외가 아니다.** 마커가 붙은
-평문 `gateway.yaml` 하나를 `addons/gateway/shared-gateway/`에 두고 그 경로를
-`addons/baseline/gateway.yaml`의 전담 ApplicationSet이 **Directory 소스**로 읽으면,
-그 ApplicationSet 자신도 마커에 걸려 렌더링이 통째로 빈다 — `argocd app manifests`가
-빈 출력을 반환하는데 `Application`은 리소스 0개라 비교할 게 없으니 `Synced`/`Healthy`로
-조용히 표시된다(에러도 경고도 없다). `Chart.yaml`이 있는 디렉토리를 전담 소스로
-참조하면 Helm 타입으로 인식돼 이 함정을 피한다(`addons/karpenter/nodepool/`·
-`addons/gateway/shared-gateway/`가 이 형태) — **마커가 붙은 파일을 실제로 렌더해야
-하는 전담 Application이 있다면, 그 소스는 반드시 Helm 타입이어야 한다.** 평문
-Directory 소스로 그 파일 자체를 노출하는 조합은 성립하지 않는다.
-
-**`argocd-seed.sh`는 `.sh`라 애초에 directory 소스의 스캔 대상이 아니다.**
+`addons/<addon>/<dir>/`는 값을 주입할 일이 없으면 평문 매니페스트 디렉토리다. 이 저장소의
+셋(`gateway/shared-gateway`·`karpenter/nodepool`·`kyverno/custom-policies`)이 전부 그렇다.
+AWS 원본은 EC2NodeClass·GatewayClass가 per-cluster 값을 받아 helm 차트인 것이 있다.
 
 ## 로컬 게이트 — 이 저장소의 유일한 강제 지점
 
@@ -113,10 +102,6 @@ brew install shellcheck        # 셸 게이트가 요구한다. 없으면 훅이
 ```bash
 python3 scripts/validate-comment-conventions.py
 ```
-
-⚠️ 검사기와 훅이 `.py`와 확장자 없는 파일인 것은 우연이 아니다. `bootstrap/root-app.yaml`의
-root App이 `path: .` + `recurse: true`라 **저장소 어디에 두든 `.yaml`은 매니페스트로
-흡수된다** — 도구를 `.yaml`로 만들면 그 자체가 클러스터에 실린다.
 
 staged된 `.sh`에는 `bash -n`(문법)과 `shellcheck -x`(인용·확장·종료코드)가 함께 돈다.
 `bootstrap/argocd-seed.sh`는 workbench에서 사람이 손으로 돌리는 스크립트라, 깨진 채 머지되면

@@ -1,4 +1,3 @@
-{{- /* +argocd:skip-file-rendering — root-app 스캔 제외. 렌더 출력에는 남지 않는다 */ -}}
 # Gateway API 실사용 계층 — AKS App Routing(Istio 기반) GatewayClass를 참조한다.
 # `gatewayClassName: approuting-istio`는 AKS가 컨트롤러 기동 시 자동 등록하는 이름
 # (learn.microsoft.com/en-us/azure/aks/app-routing-gateway-api — "Gateway Class name"

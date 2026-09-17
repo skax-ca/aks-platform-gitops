@@ -38,20 +38,10 @@ metadata:
   namespace: argocd
 spec:
   generators:
-    # 다른 baseline addon과 동일한 cluster generator. per-cluster 값은 없지만
+    # 다른 baseline addon과 동일한 cluster generator. per-cluster 값이 없어
     # (App Routing은 클러스터 자체의 AKS 기능이라 workload identity·subnet 같은
-    # per-cluster 파라미터가 없다) addons/gateway/shared-gateway/는 그래도 helm
-    # 차트다 — 값 주입이 아니라 root-app 스캔 제외 마커(README "root App 스캔에서
-    # 파일을 빼는 방법" 절 참조) 때문이다. 그 마커는 root-app뿐 아니라 이 경로를
-    # 읽는 모든 Directory 타입 Application에서 렌더링을 막는다 — 이 파일을 평문
-    # Directory로 뒀다면 이 ApplicationSet 자신도 걸려 리소스 0개가 됐을 것이다.
-    # Chart.yaml이 있는 디렉토리를 전담 소스로 참조하면 Helm 타입으로 인식돼 이
-    # 함정을 피한다(shared-gateway/Chart.yaml 헤더 참고).
-    #
-    # 🔴 이 파일 자체에 그 마커 문자열을 그대로 적지 않는다 — 판정이 파일 전체
-    # 문자열 포함 검사라, 여기 적으면 이 ApplicationSet 자신이 root-app 스캔에서
-    # 빠져 클러스터에서 통째로 pruned된다. 주석에 적어도 걸린다(root-app.yaml이
-    # 자기 자신에 대해 경고해 둔 것과 같은 함정이다).
+    # per-cluster 파라미터가 없다) addons/gateway/shared-gateway/는 평문 매니페스트
+    # 디렉토리다. root-app의 include 범위 밖이라 그 파일을 root App이 읽을 일이 없다.
     - clusters:
         selector:
           matchExpressions:
