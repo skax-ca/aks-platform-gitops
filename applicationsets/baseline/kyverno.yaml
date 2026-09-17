@@ -45,6 +45,8 @@ spec:
         # 🔴 3.8 라인에 머문다. 3.9.0 부터 kyverno-policies 가 PSS 정책을 ValidatingPolicy(CEL 기반)
         #    로 렌더해 kind 자체가 달라지는데, AppProject 의 whitelist 와 우리 커스텀 정책은
         #    ClusterPolicy 다. 버전 제약은 아니다(양쪽 다 k8s >= 1.25).
+        #    ⚠️ policyType=ClusterPolicy 를 명시해 버티는 쪽은 시한부다 — 3.9 차트 values 가 legacy
+        #       kyverno.io 타입을 deprecated 로 표시하고 향후 릴리스에서 제거한다고 적는다.
         targetRevision: 3.8.2
       destination:
         server: '{{server}}'

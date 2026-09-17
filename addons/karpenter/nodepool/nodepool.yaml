@@ -1,13 +1,13 @@
 apiVersion: karpenter.sh/v1
 kind: NodePool
 metadata:
-  # ⛔ "default"를 쓰지 않는다 — NAP을 켜면 Azure가 자기 own default_node_pools=Auto로
-  #    "default"·"system-surge" NodePool을 자동 생성한다(공식문서 node-auto-provisioning-
-  #    node-pools). 같은 이름을 쓰면 그 자동 생성 리소스와 소유권이 충돌한다. upstream
-  #    공식 예제 파일명 자체도 "general-purpose"라 이 이름을 그대로 채택했다(우리가
-  #    지어낸 값이 아니다) — 두 NodePool(Azure 자동 생성분 + 이것)이 당분간 공존한다는
-  #    뜻이므로, default_node_pools=None으로 끄고 싶어지면 iac-module-library의
-  #    aks-cluster 모듈에 그 필드를 새로 노출하는 별도 변경이 필요하다(지금은 범위 밖).
+  # ⚠️ 이 클러스터에서 이것이 **유일한 NodePool** 이고, NAP 은 NodePool 이 하나도 없으면 노드를
+  #    만들지 못한다. aks-cluster 모듈이 node_provisioning_profile.default_node_pools 를 "None" 으로
+  #    고정해 Azure 가 만들던 "default"·"system-surge" 두 NodePool 이 생기지 않기 때문이다 —
+  #    GitOps 가 NodePool 을 전량 소유하게 하려는 결정이다.
+  #    ⇒ 이 addon 은 cluster Secret 의 addon-karpenter 라벨로 옵트인하므로, NAP 을 켠 클러스터에
+  #      그 라벨을 빠뜨리면 NodePool 이 0개가 되고 아무 노드도 뜨지 않는다.
+  # 이름은 업스트림 공식 예제(general-purpose.yaml)에서 가져왔다.
   name: general-purpose
   annotations:
     kubernetes.io/description: >-

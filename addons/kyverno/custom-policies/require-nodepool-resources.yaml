@@ -40,10 +40,16 @@ spec:
               # 컨트롤러의 재시도가 이 정책에 매번 막히고, 에러는 Kyverno 로그에만 남는다.
               # 이름 대신 라벨로 거르는 이유는 Azure 가 새 aks-*-system 네임스페이스로 관리형
               # addon 을 내놓아도 같은 사고가 재발하지 않게 하기 위해서다.
+              # ⚠️ 두 라벨을 모두 건다(matchExpressions 는 AND 라 제외 범위만 넓어진다).
+              #    control-plane 은 AKS FAQ 가 "내부 AKS 네임스페이스"의 마커로 지목하며 이 selector
+              #    형태를 그대로 예시로 싣는다. managedby 는 공식 문서상 관리형 **컴포넌트**의 라벨이라
+              #    네임스페이스에도 붙는지가 문서로 확정되지 않는다 — 그래서 그것 하나에 기대지 않는다.
               # exclude 가 아니라 match 에 두는 이유: exclude 쪽 namespaceSelector 가 무시되는
               # Kyverno 버그 보고가 있다. match 쪽은 공식 문서 예제에 그대로 나오는 경로다.
               namespaceSelector:
                 matchExpressions:
+                  - key: control-plane
+                    operator: DoesNotExist
                   - key: kubernetes.azure.com/managedby
                     operator: NotIn
                     values:
