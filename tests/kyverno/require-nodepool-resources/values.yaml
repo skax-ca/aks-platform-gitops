@@ -13,7 +13,3 @@ namespaceSelector:
     labels:
       kubernetes.io/metadata.name: kube-system
       control-plane: "true"
-  - name: aks-managed
-    labels:
-      kubernetes.io/metadata.name: aks-managed
-      kubernetes.azure.com/managedby: aks

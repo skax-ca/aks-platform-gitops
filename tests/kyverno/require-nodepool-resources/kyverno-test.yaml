@@ -15,5 +15,5 @@ results:
     resources: [fail-no-requests, fail-no-memory-limit, fail-init-no-resources]
     result: fail
   - policy: require-nodepool-resources
-    resources: [skip-argocd, skip-control-plane, skip-managedby-aks]
+    resources: [skip-argocd, skip-control-plane]
     result: skip

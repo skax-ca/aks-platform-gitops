@@ -80,14 +80,3 @@ spec:
   containers:
     - name: app
       image: nginx
----
-# kubernetes.azure.com/managedby=aks 라벨이 붙은 네임스페이스도 뺀다.
-apiVersion: v1
-kind: Pod
-metadata:
-  name: skip-managedby-aks
-  namespace: aks-managed
-spec:
-  containers:
-    - name: app
-      image: nginx
