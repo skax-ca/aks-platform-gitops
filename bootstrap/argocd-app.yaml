@@ -21,7 +21,7 @@ metadata:
   # ⛔ compare-options: ServerSideDiff 를 여기 넣지 않는다. 흡수 직후의 OutOfSync 는 ArgoCD 자신의
   #    tracking-id 애노테이션 때문이고, 그것은 desired 가 실제로 선언하는 필드라 diff 전략으로
   #    사라지지 않는다. sync 를 한 번 하면 해소된다.
-  #    ⚠️ seed 5단계 직후 `argocd app diff argocd --core` 로 이 전제를 확인한다 — 아래 syncPolicy
+  #    ⚠️ seed 의 root Application 단계 직후 `argocd app diff argocd --core` 로 이 전제를 확인한다 — 아래 syncPolicy
   #    판단이 여기에 기댄다.
 spec:
   project: platform
@@ -65,7 +65,7 @@ spec:
       # 🔑 이것이 Secret/argocd-secret 을 지킨다. 차트는 그 Secret 을 data 없이 렌더하고, 그 자리는
       #    argocd-server 가 런타임에 admin 비밀번호 해시·server.secretkey·TLS 로 채운다. SSA 는
       #    자신이 선언한 필드만 소유하므로 차트가 선언하지 않는 기존 키를 건드리지 않는다.
-      #    ⚠️ seed 5단계 직전에 `argocd app manifests` 렌더본으로 SSA dry-run 을 돌려 이 보호를
+      #    ⚠️ seed 의 root Application 단계 직전에 `argocd app manifests` 렌더본으로 SSA dry-run 을 돌려 이 보호를
       #       확인한다.
       #    ⛔ Force=true(delete/create)와 Replace=true(객체 통째 교체)를 넣지 않는다. 특히 Replace 는
       #       ServerSideApply 보다 우선해서, 넣으면 이 보호가 조용히 무력화된다.

@@ -66,7 +66,7 @@ scripts/          # 주석 규칙 검사기(.py다 - 아래 "로컬 게이트" �
 디렉토리까지 전부 읽으므로(`**`), 그 안에서 파일이 늘고 주는 것은 `root-app.yaml`과 무관하다. ⚠️ **렌더가 깨지는 파일이 든 경로**를 `include`에
 넣으면 그 spec이 적용된 뒤부터 자기 갱신이 멈춘다. root App은 자기 spec을 클러스터에 적용된
 옛 spec으로 렌더한 뒤에야 갱신하는데, 그 렌더가 깨지면 갱신에 이르지 못한다. 그 파일을 고치는
-커밋이 풀거나, `argocd-seed.sh --from 5 --to 5`로 커밋본 `root-app.yaml`을 손으로 다시 apply한다.
+커밋이 풀거나, `argocd-seed.sh`의 root Application 단계만 다시 돌려 커밋본 `root-app.yaml`을 손으로 다시 apply한다.
 
 `addons/<addon>/<dir>/`는 값을 주입할 일이 없으면 평문 매니페스트 디렉토리다. 이 저장소의
 셋(`gateway/shared-gateway`·`karpenter/nodepool`·`kyverno/custom-policies`)이 전부 그렇다.
@@ -150,5 +150,7 @@ staged된 `.sh`에는 `bash -n`(문법)과 `shellcheck -x`(인용·확장·종�
 `eks-platform-gitops`가 같은 게이트를 같은 내용으로 갖는다. 한쪽을 고치면 다른 쪽도 함께
 고친다 — 드리프트를 검사하는 장치는 없다.
 
-seed 절차(workbench 준비 · GitHub App 설치 범위 · `argocd-seed.sh` 실행 순서)는
-`aks-reference-infra`의 `docs/hub-lifecycle.md` 「GitOps 씨딩」이 소유한다.
+seed 절차(workbench 준비 · `argocd-seed.sh` 실행 순서)는 `aks-reference-infra`의
+`docs/hub-lifecycle.md` 「GitOps 씨딩」이 소유한다. 저장소가 public이라 클론에도 ArgoCD의 읽기에도
+자격증명이 없다. 스크립트는 preflight에서 `root-app.yaml`의 `repoURL`을 익명으로 `ls-remote`해 그
+전제를 확인한다 — 저장소가 private으로 돌아가면 sync가 조용히 멈추기 때문이다.
