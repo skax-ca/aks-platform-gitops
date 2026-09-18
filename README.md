@@ -166,3 +166,9 @@ seed 절차(workbench 준비 · `argocd-seed.sh` 실행 순서)는 `aks-referenc
 `docs/hub-lifecycle.md` 「GitOps 씨딩」이 소유한다. 저장소가 public이라 클론에도 ArgoCD의 읽기에도
 자격증명이 없다. 스크립트는 preflight에서 `root-app.yaml`의 `repoURL`을 익명으로 `ls-remote`해 그
 전제를 확인한다 — 저장소가 private으로 돌아가면 sync가 조용히 멈추기 때문이다.
+
+---
+
+## 라이선스
+
+[MIT](LICENSE).
