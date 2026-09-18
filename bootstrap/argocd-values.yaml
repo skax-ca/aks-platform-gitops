@@ -34,21 +34,24 @@ notifications:
   enabled: false
 
 # controller·server 를 hub ArgoCD 의 Workload Identity 로 federate 한다. client-id 는
-#   aks-reference-infra 의 live/hub/vwan 이 만든 UAMI 의 것이다.
+#   aks-reference-infra 의 live/hub/aks 가 만든 UAMI 의 것이다(FIC 의 issuer 가 그 클러스터
+#   자신의 OIDC issuer URL 에 묶여야 해서 aks root 가 만든다). hub 를 재구축하면 이 값이
+#   새로 발급되므로 seed 전에 손으로 갱신한다. 읽는 법:
+#   az identity show -g <워크로드 RG> -n id-<workload>-<env>-<region>-argocd-01 --query clientId
 #   ⚠️ ServiceAccount annotations 와 Pod labels 이 **둘 다** 있어야 웹훅이 토큰 파일을 주입한다.
 #   하나만 있으면 조용히 무동작이다. controller 는 스포크 API 서버와 통신해 reconcile 하고,
 #   server 는 UI·CLI 경로에서 같은 API 를 호출하므로 둘 다 필요하다.
 controller:
   serviceAccount:
     annotations:
-      azure.workload.identity/client-id: "35e68e71-1bfe-4374-950e-1bae83e5f3e0"
+      azure.workload.identity/client-id: "ec70a09c-8160-4ba6-8a25-2905d55b9376"
   podLabels:
     azure.workload.identity/use: "true"
 
 server:
   serviceAccount:
     annotations:
-      azure.workload.identity/client-id: "35e68e71-1bfe-4374-950e-1bae83e5f3e0"
+      azure.workload.identity/client-id: "ec70a09c-8160-4ba6-8a25-2905d55b9376"
   podLabels:
     azure.workload.identity/use: "true"
 
