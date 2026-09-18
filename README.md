@@ -124,7 +124,7 @@ YAML 파싱·정책 판정을 더해 PR·main push에서 도는 `.github/workflo
 
 ```bash
 git config core.hooksPath .githooks
-brew install shellcheck        # 셸 게이트가 요구한다. 없으면 훅이 즉시 실패한다
+brew install shellcheck gitleaks   # 셸·시크릿 게이트가 요구한다. 없으면 훅이 즉시 실패한다
 ```
 
 `.githooks/pre-commit`이 staged 파일 중 `applicationsets/`·`addons/`·`projects/`·`clusters/`·`bootstrap/`·`tests/`의
