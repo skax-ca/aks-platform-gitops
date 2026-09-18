@@ -48,8 +48,10 @@ addons/<addon>/            # 위 ApplicationSet의 source가 읽는 내용물. r
 addons/gateway/shared-gateway/  #   Gateway 매니페스트(컨트롤러는 AKS 관리형이라 GatewayClass도 없다)
 addons/karpenter/nodepool/      #   NAP의 NodePool/AKSNodeClass CR 매니페스트
 addons/kyverno/custom-policies/ #   이 저장소가 소유하는 ValidatingPolicy 매니페스트
-scripts/          # 주석 규칙 검사기(.py다 - 아래 "로컬 게이트" 절 참고)
+scripts/          # 주석 규칙 검사기(.py다 - 아래 "게이트" 절 참고)
 .githooks/        # pre-commit 훅
+.github/workflows/verify.yml # CI. 훅과 같은 검사 + YAML 파싱·kyverno test
+tests/kyverno/    # 커스텀 정책 픽스처. Application source 경로 밖이라 클러스터에 가지 않는다
 ```
 
 ## root App이 읽는 범위 — `include` allow-list
@@ -114,17 +116,18 @@ ApplicationSet이 읽는 라벨이다. 빠지면 그 addon만 조용히 안 뜬�
 ⚠️ **teardown은 매칭 라벨을 먼저 뗀 뒤 Secret을 지운다.** git 이력의 마지막 cluster-secret을 그대로
 되살리면 라벨이 빠진 껍데기이고, 그 상태로는 Application이 하나도 생기지 않는다.
 
-## 로컬 게이트 — 이 저장소의 유일한 강제 지점
+## 게이트 — 로컬 훅과 CI
 
-이 저장소에는 CI가 없다. ArgoCD가 `main`을 pull로 reconcile할 뿐이라 **커밋 전 훅이
-아니면 아무것도 막지 못한다.** clone마다 한 번 켠다.
+이 저장소는 push가 곧 apply다. ArgoCD가 `main`을 pull로 reconcile하므로, 깨진 매니페스트를
+막는 자리는 **머지 전**뿐이다. 두 층이 있다. 커밋 전 훅(clone마다 한 번 켠다)과, 같은 검사에
+YAML 파싱·정책 판정을 더해 PR·main push에서 도는 `.github/workflows/verify.yml`이다.
 
 ```bash
 git config core.hooksPath .githooks
 brew install shellcheck        # 셸 게이트가 요구한다. 없으면 훅이 즉시 실패한다
 ```
 
-`.githooks/pre-commit`이 staged 파일 중 `applicationsets/`·`addons/`·`projects/`·`clusters/`·`bootstrap/`의
+`.githooks/pre-commit`이 staged 파일 중 `applicationsets/`·`addons/`·`projects/`·`clusters/`·`bootstrap/`·`tests/`의
 `.yaml`/`.sh`, 저장소 `.md`, `scripts/*.py`, `.githooks/*`를 골라
 `scripts/validate-comment-conventions.py`에 넘긴다. 검사기는 주석에 **외부 참조**(문서 절
 번호·결정 식별자)와 **이력 서술**(날짜·세션 번호, 그리고 측정을 사건으로 적은 서술)이 있는지만
@@ -142,10 +145,19 @@ staged된 `.sh`에는 `bash -n`(문법)과 `shellcheck -x`(인용·확장·종�
 `bootstrap/argocd-seed.sh`는 workbench에서 사람이 손으로 돌리는 스크립트라, 깨진 채 머지되면
 부트스트랩 한가운데서 드러난다.
 
-⛔ 매니페스트 렌더 결과는 검사하지 않는다. 그것은 ArgoCD가 sync 시점에 판정하고,
-훅에서 흉내 내면 두 판정이 갈린다.
+`verify.yml`은 훅과 같은 검사(주석 규칙·`bash -n`·`shellcheck -x`, 버전을 로컬과 같게 핀)에
+두 가지를 더한다. **YAML 전체 파싱**과 **`kyverno test`**(`tests/kyverno/`의 픽스처로 커스텀
+정책의 통과·거부·제외를 판정한다. 제외 조건 셋 — `control-plane` 라벨·`managedby=aks`·argocd —
+이 각각 `Excluded`로 떨어지는지가 픽스처에 있다. CLI 버전은 kyverno 차트의 appVersion과 같아야
+한다). 이 저장소에는 로컬 helm 차트가 없어 렌더 단계는 없다. 픽스처는 어떤 Application의
+source 경로에도 들어가지 않는 `tests/`에 둔다 — `addons/` 아래 두면 Directory 타입 Application이
+파드 픽스처를 클러스터에 적용한다.
 
-의도적 우회는 `git commit --no-verify`이고, 사유를 커밋 메시지에 남긴다.
+⛔ ArgoCD의 렌더(Application 조립·파라미터 주입·`include` 판정)는 흉내 내지 않는다. 그것은
+클러스터에서 ArgoCD가 판정하고, seed 뒤 `argocd app diff`가 그 자리다. CI가 보는 것은 정책
+파일 자체다.
+
+의도적 우회는 `git commit --no-verify`이고, 사유를 커밋 메시지에 남긴다. CI는 우회하지 않는다.
 
 `eks-platform-gitops`가 같은 게이트를 같은 내용으로 갖는다. 한쪽을 고치면 다른 쪽도 함께
 고친다 — 드리프트를 검사하는 장치는 없다.

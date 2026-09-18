@@ -1,0 +1,19 @@
+apiVersion: cli.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: require-nodepool-resources
+policies:
+  - ../../../addons/kyverno/custom-policies/require-nodepool-resources.yaml
+resources:
+  - resources.yaml
+variables: values.yaml
+results:
+  - policy: require-nodepool-resources
+    resources: [pass-complete]
+    result: pass
+  - policy: require-nodepool-resources
+    resources: [fail-no-requests, fail-no-memory-limit, fail-init-no-resources]
+    result: fail
+  - policy: require-nodepool-resources
+    resources: [skip-argocd, skip-control-plane, skip-managedby-aks]
+    result: skip
