@@ -39,8 +39,8 @@ spec:
         apiVersions: [v1]
         operations: [CREATE, UPDATE]
         resources: [pods]
-    # 세 조건은 AND 라 하나씩 더할수록 정책이 닿는 범위가 좁아진다. 앞의 둘이 AKS 관리형
-    #    네임스페이스를, 마지막 하나가 ArgoCD 를 뺀다.
+    # 두 조건은 AND 라 하나씩 더할수록 정책이 닿는 범위가 좁아진다. 앞의 것이 AKS 관리형
+    #    네임스페이스를, 뒤의 것이 ArgoCD 를 뺀다.
     # ⚠️ 관리형을 빼지 않으면 그 addon 이 뜨지 못한다 — App Routing 의 istiod 는
     #    requests/limits 를 선언하지 않아 Azure 내부 컨트롤러의 재시도가 매번 막히고, 에러는
     #    Kyverno 로그에만 남는다. Azure 포털에는 addon 이 그냥 뜨지 않는 것으로 보인다.
@@ -50,19 +50,19 @@ spec:
     #    resources: {} 로 두고 bootstrap/argocd-values.yaml 도 그 값을 채우지 않는다. Kyverno 가
     #    ArgoCD 를 막으면 고칠 수단까지 함께 잃는 순환이다.
     # control-plane 은 AKS FAQ 가 "내부 AKS 네임스페이스"의 마커로 지목하며 이 selector 형태를
-    #    그대로 예시로 싣는다. managedby 는 공식 문서상 관리형 **컴포넌트**의 라벨이라
-    #    네임스페이스에도 붙는지가 문서로 확정되지 않는다 — 그래서 그것 하나에 기대지 않는다.
+    #    그대로 예시로 싣는다. 관리형 네임스페이스가 이 라벨 하나로 전부 잡히는 것은 클러스터에서
+    #    확인했다(kube-system·aks-istio-system). 관리형인데 이 라벨이 없는 네임스페이스가 나오면
+    #    그것만 이 selector 에 더한다.
     # 🔑 네임스페이스 제외를 excludeResourceRules 가 아니라 selector 로 거는 이유: 그 필드는
     #    apiGroup·resource 단위라 네임스페이스를 받지 않는다. kubernetes.io/metadata.name 은
     #    apiserver 가 모든 네임스페이스에 자기 이름으로 붙이는 라벨이라 이름으로 거르는 것과 같다.
+    # ⚠️ Kyverno 는 여기 적힌 것에 자기 기본 제외(kube-system·kyverno)를 더해 웹훅을 만든다.
+    #    그 둘은 이 파일에 적지 않아도 빠지지만, 오프라인 `kyverno test` 는 그것을 흉내 내지
+    #    않으므로 픽스처는 이 파일의 selector 만 반영한다.
     namespaceSelector:
       matchExpressions:
         - key: control-plane
           operator: DoesNotExist
-        - key: kubernetes.azure.com/managedby
-          operator: NotIn
-          values:
-            - aks
         - key: kubernetes.io/metadata.name
           operator: NotIn
           values:
