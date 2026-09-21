@@ -38,7 +38,7 @@ spec:
     # 설계 문서가 갖는다.
     # ⚠️ 클러스터를 재생성할 때마다 접미사가 바뀐다. clusters/dev/.../cluster-secret.yaml 의 server 와
     #    함께 갱신한다 — 한쪽만 고치면 이 값이 낡아 스포크 팬아웃이 조용히 막힌다.
-    - server: https://aks-demo-dev-krc-main-01-vsj5lmr3.hcp.koreacentral.azmk8s.io:443
+    - server: https://aks-demo-dev-krc-main-01-yp20hiip.hcp.koreacentral.azmk8s.io:443
       namespace: '*'
 
   # 기본 차단으로 시작해 addon 마다 필요한 kind 만 연다. 목록은 각 차트를 렌더해 cluster-scoped
