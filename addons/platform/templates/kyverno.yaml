@@ -1,0 +1,44 @@
+# Kyverno 엔진 — wave 1(컨트롤러). 정책은 kyverno-policies.yaml(업스트림 PSS)과
+# kyverno-custom-policies.yaml(우리 소유)이 갖는다.
+#
+# wave 1 인 이유: 파드가 뜰 NAP 노드(karpenter-nodepool, wave 0)에 기대고, 정책(wave 2)의 CRD 를
+#    이 차트가 만든다.
+# ⛔ helm values 를 넘기지 않는다. 차트 기본값을 그대로 받는다. 시스템 노드풀이 CriticalAddonsOnly 로
+#    잠겨 있지만 tolerations 를 주지 않는 것이 의도다. 엔진이 NAP 노드로 밀려나는 것이 격리의
+#    내용이다. 그 대가가 위 wave 순서다.
+# baseline 인 이유: 옵트인으로 두면 라벨을 빠뜨린 클러스터가 정책 엔진 없이 뜬다. Terraform 전제가
+#    없어 전 클러스터에 적용해도 안전하다.
+# 🔑 엔진은 admission webhook 컨트롤러이기도 해서, 깨지면 그 클러스터의 모든 배포가 막힌다. 그래서
+#    비운영에서 먼저 확인하고 승격한다. 엔진과 정책의 버전 짝 규칙은 values.yaml 의 versions 표가 갖는다.
+# ⚠️ 이미지가 reg.kyverno.io(GHCR 앞 vanity 도메인)라 노드가 reg.kyverno.io 와 ghcr.io 둘 다
+#    나가야 한다.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: {{ include "platform.name" . }}-kyverno
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+    # 이것이 없으면 CRD 22개가 영구 OutOfSync 다. 차이 나는 spec.conversion 은 apiserver 가 채운
+    #    무소유 필드라 managedFields 기반 ignoreDifferences 로는 잡히지 않는다.
+    argocd.argoproj.io/compare-options: ServerSideDiff=true
+spec:
+  project: platform
+  source:
+    repoURL: https://kyverno.github.io/kyverno/
+    chart: kyverno
+    targetRevision: {{ include "platform.staged" (list . "kyverno") }}
+  destination:
+    server: {{ include "platform.server" . }}
+    namespace: kyverno
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      # ⚠️ 자동 생성된 Namespace 도 AppProject 의 clusterResourceWhitelist 검사를 받는다.
+      - CreateNamespace=true
+      # CRD 22개가 커서 client-side apply 의 애노테이션 크기 한도에 걸린다.
+      - ServerSideApply=true

@@ -1,0 +1,46 @@
+{{- if eq .Values.addons.karpenter "enabled" }}
+# Karpenter NodePool/AKSNodeClass — wave 0(CR), opt-in. Node Auto-Provisioning 의 CR 이다.
+#
+# 🔑 wave 0 인 이유: 컨트롤러와 CRD 는 계층 1(NAP)이 만들어 기댈 addon 이 없고, Kyverno(wave 1)가
+#    이 NodePool 이 띄우는 NAP 노드에 기댄다. Kyverno 는 시스템 풀 taint 를 견디지 않아 NAP 노드에서만
+#    뜬다. 해제는 역순이라 Kyverno 와 그 삭제 훅 Job(scale-to-zero·rm-webhooks)이 NAP 노드가 살아 있을
+#    때 끝난다. 이 NodePool 이 먼저 지워지면 그 Job 이 Pending 에 걸려 kyverno Application 이
+#    deletionTimestamp 를 낀 채 남는다.
+# 컨트롤러 Application 이 없다. AKS 의 NAP 은 Karpenter 컨트롤러 자체를 Azure 가 관리형으로
+#    배포·운영하고, aks-reference-infra 의 live/hub/aks 가 enable_karpenter 하나로 켠다.
+# opt-in 인 이유: NAP 을 켜지 않은 클러스터에 이 CR 을 밀어넣으면 CRD 가 없어 sync 가 계속 실패로
+#    남는다. cluster Secret 의 addon-karpenter 라벨이 이 조건의 짝이다.
+# ⚠️ 구독하지 않은 클러스터에서는 Kyverno 가 뜰 노드가 없어 wave 1 이 Healthy 가 되지 못하고 wave 2
+#    (정책)가 멈춘다. 엔진 없이 정책만 적용될 일은 없다.
+# 평문 매니페스트인 이유: AKSNodeClass 에는 주입할 per-cluster 값이 없다. 네트워킹은 클러스터의
+#    node_provisioning_profile 이 소유한 VNet 통합에서 자동 상속된다.
+# ⚠️ 이 클러스터는 데이터 플레인이 Cilium 이라, 새 노드에 Cilium daemonset 이 붙기 전에는
+#    워크로드를 스케줄하면 안 된다. 그 startupTaint 는 addons/karpenter/nodepool/nodepool.yaml 이 건다.
+# Terraform 전제: NAP 은 overlay CNI·workload identity·시스템 노드풀 오토스케일 해제를 함께 요구한다.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: {{ include "platform.name" . }}-karpenter-nodepool
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  project: platform
+  source:
+    repoURL: {{ .Values.gitops.repoURL }}
+    targetRevision: {{ .Values.gitops.targetRevision }}
+    path: addons/karpenter/nodepool
+  destination:
+    server: {{ include "platform.server" . }}
+    namespace: kube-system
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      # NAP 을 막 켠 직후 CRD 가 아직 반영되기 전인 첫 sync 의 dry-run 실패를 피한다.
+      - SkipDryRunOnMissingResource=true
+      - ServerSideApply=true
+{{- end }}

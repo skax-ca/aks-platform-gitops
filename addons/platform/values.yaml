@@ -1,0 +1,41 @@
+# 부모 차트 values — 전 클러스터가 이 파일 하나를 읽는다
+#
+# cluster·addons 는 ApplicationSet(applicationsets/platform.yaml)이 cluster Secret 에서 읽어
+#    helm.parameters 로 넘긴다. 여기 비워 두고 템플릿이 required 로 강제한다.
+
+cluster:
+  name: ""
+  server: ""
+  # prd | nonprd 둘뿐이다. versions 표에서 어느 줄을 읽을지 정한다.
+  tier: ""
+
+# opt-in 구독. cluster Secret 의 addon-<name> 라벨 값이 그대로 온다. enabled 일 때만 렌더한다.
+addons:
+  karpenter: ""
+
+# 🔑 버전 표. 승인된 버전은 이 표에만 있다. 템플릿은 tier 로 줄을 고를 뿐 버전을 적지 않는다.
+#
+# staged addon 은 prd·nonprd 두 줄을 나란히 둔다. 두 값이 다르면 승격이 진행 중이고, 같으면 끝난
+#    것이다. 승격은 nonprd 를 먼저 올려 비운영 클러스터에서 확인하고 prd 를 같은 값으로 올린다.
+# 컨트롤러를 AKS 가 관리하는 addon(NAP · App Routing)은 표에 없다. 버전 승격을 AKS 가 클러스터
+#    업그레이드에 맞춰 한다.
+versions:
+  # ⛔ 엔진과 업스트림 정책은 티어 안에서 **같은 마이너 라인**에 둔다. 차트 번호 일치가 아니라 라인
+  #    일치다. 정책 차트가 요구하는 것은 엔진 app 버전의 하한이고, 그 라인에 짝이 없는 엔진 패치(보안
+  #    백포트가 이 형태로 온다)는 엔진만 올린다. 라인을 넘는 승격은 네 값(엔진·정책 × 티어)을 짝으로
+  #    움직인다.
+  # ⛔ 3.8 라인으로 되돌리지 않는다. 이 엔진이 쓰는 정책 타입은 CEL 기반 policies.kyverno.io/
+  #    ValidatingPolicy 이고, legacy kyverno.io 타입은 v1.19 에서 deprecated, v1.20 에서 제거된다.
+  # ⚠️ 엔진을 올리면 .github/workflows/verify.yml 의 KYVERNO_VERSION 도 그 appVersion 으로 올린다.
+  kyverno:
+    prd: 3.9.1
+    nonprd: 3.9.1
+  kyvernoPolicies:
+    prd: 3.9.1
+    nonprd: 3.9.1
+
+# addon Application 이 평문 매니페스트를 읽는 저장소. ⚠️ projects/platform.yaml 의 sourceRepos 에
+#    있어야 한다.
+gitops:
+  repoURL: https://github.com/skax-ca/aks-platform-gitops.git
+  targetRevision: main
