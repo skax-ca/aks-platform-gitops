@@ -49,8 +49,9 @@ addons/gateway/shared-gateway/  #   Gateway 매니페스트(컨트롤러는 AKS 
 addons/karpenter/nodepool/      #   NAP의 NodePool/AKSNodeClass CR 매니페스트
 addons/kyverno/custom-policies/ #   이 저장소가 소유하는 ValidatingPolicy 매니페스트
 scripts/          # 주석 규칙 검사기(.py다 - 아래 "게이트" 절 참고)
+scripts/include-check/ # root App include 판정(Go, 별도 모듈). CI 전용
 .githooks/        # pre-commit 훅
-.github/workflows/verify.yml # CI. 훅과 같은 검사 + YAML 파싱·부모 차트 렌더·kyverno test
+.github/workflows/verify.yml # CI. 훅과 같은 검사 + YAML 파싱·include 판정·부모 차트 렌더·kyverno test
 tests/kyverno/    # 커스텀 정책 픽스처. Application source 경로 밖이라 클러스터에 가지 않는다
 ```
 
@@ -173,7 +174,7 @@ staged된 `.sh`에는 `bash -n`(문법)과 `shellcheck -x`(인용·확장·종�
 부트스트랩 한가운데서 드러난다.
 
 `verify.yml`은 훅과 같은 검사(주석 규칙·`bash -n`·`shellcheck -x`, 버전을 로컬과 같게 핀)에
-세 가지를 더한다. **YAML 전체 파싱**, **부모 차트 `helm lint`·`helm template`**(`required` 값은
+네 가지를 더한다. **YAML 전체 파싱**, **root App `include` 판정**(아래), **부모 차트 `helm lint`·`helm template`**(`required` 값은
 ApplicationSet이 cluster Secret 라벨에서 주입하는 것이라 대표값을 `--set`으로 준다. 두 티어 × NAP
 구독 유무를 모두 렌더하고, 없는 `tier`가 렌더 실패가 되는지 본다), **`kyverno test`**(`tests/kyverno/`의 픽스처로 커스텀
 정책의 통과·거부·제외를 판정한다. 제외 조건 셋 — `control-plane` 라벨·`managedby=aks`·argocd —
@@ -182,9 +183,20 @@ ApplicationSet이 cluster Secret 라벨에서 주입하는 것이라 대표값�
 source 경로에도 들어가지 않는 `tests/`에 둔다 — `addons/` 아래 두면 Directory 타입 Application이
 파드 픽스처를 클러스터에 적용한다.
 
-⛔ ArgoCD의 렌더(Application 조립·파라미터 주입·`include` 판정)는 흉내 내지 않는다. 그것은
-클러스터에서 ArgoCD가 판정하고, seed 뒤 `argocd app diff`가 그 자리다. CI가 보는 것은 차트와 정책
-파일 자체다.
+⛔ ArgoCD의 렌더(Application 조립·파라미터 주입)는 흉내 내지 않는다. 그것은 클러스터에서
+ArgoCD가 판정하고, seed 뒤 `argocd app diff`가 그 자리다. CI가 보는 것은 차트와 정책 파일
+자체다.
+
+`include` 판정은 예외다. 흉내 내는 것이 아니라 **ArgoCD와 같은 매처를 같은 방식으로 부른다**:
+repo-server가 쓰는 `gobwas/glob`(ArgoCD `go.mod`와 같은 버전)을 구분자 없이 컴파일해 저장소 루트
+기준 상대 경로에 댄다. 이 자리를 CI로 끌어온 이유는 두 가지다. `include`가 파일을 놓치면 root App은
+오류 없이 `Synced`로 남아 클러스터에서도 드러나지 않고, 클러스터가 없는 동안에는 `argocd app diff`를
+돌릴 곳이 없다. `scripts/include-check`가 두 가지를 본다. `{a,b,…}` 대안 하나하나가 파일을 1개
+이상 잡는지, 그리고 대안이 가리키는 최상위 디렉토리 안에서 매니페스트로 보이는 파일(ArgoCD와 같은
+기준: 확장자와 `apiVersion:`·`kind:`·`metadata:`)이 `include` 밖에 남지 않았는지다. ⚠️ 셸 glob과
+의미가 다르다. 구분자가 없어 `*`도 `/`를 넘고(`projects/*.yaml`이 `projects/a/b.yaml`을 잡는다),
+`x/**/*.yaml`은 `x` 바로 아래 파일을 잡지 않는다. 로컬에서는 저장소 루트에서
+`go run -C scripts/include-check .`이다.
 
 의도적 우회는 `git commit --no-verify`이고, 사유를 커밋 메시지에 남긴다. CI는 우회하지 않는다.
 
