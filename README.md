@@ -100,6 +100,7 @@ Job(`scale-to-zero`·`rm-webhooks`)이 NAP 노드가 살아 있을 때 끝난다
 | 항목 | 규약 |
 |---|---|
 | wave | addon Application의 `argocd.argoproj.io/sync-wave`. 기대는 addon보다 크게 둔다. 대기는 `bootstrap/argocd-values.yaml`의 Application health Lua가 있어야 선다. 없으면 wave가 생성 순서만 정한다 |
+| 식별 라벨 | addon Application에 `platform.addon`·`platform.cluster`·`platform.wave`, 부모에 `platform.cluster`. 이름의 `<cluster>-` 접두사가 콘솔에서 잘려 addon이 가려지므로 식별은 라벨로 한다(`kubectl -n argocd get applications -l platform.cluster=<cluster> -L platform.addon,platform.wave`, `argocd app list -l platform.addon=<addon>`). 라벨과 sync-wave 어노테이션은 `_helpers.tpl`의 `platform.meta` 하나가 찍는다. 트리 노드 태그는 `bootstrap/argocd-values.yaml`의 `resource.customLabels`가 띄운다 |
 | `finalizers` | 부모와 addon Application 모두 `resources-finalizer.argocd.argoproj.io`를 둔다. 부모의 것이 해제 때 addon을 wave 역순으로 지우고, addon의 것이 클러스터 실물을 지운다 |
 | cluster-scoped CR | NodePool·AKSNodeClass·ValidatingPolicy는 cluster-scoped라 `destination.namespace`가 형식상 값이다 |
 | 부모 `prune: true` | opt-in 해지(라벨 제거)가 부모의 prune으로 이루어진다. ⚠️ 그래서 `addons/platform/templates/`에서 파일을 지우면 등록된 전 클러스터에서 그 addon이 지워진다 |

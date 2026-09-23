@@ -12,8 +12,7 @@ metadata:
   namespace: argocd
   finalizers:
     - resources-finalizer.argocd.argoproj.io
-  annotations:
-    argocd.argoproj.io/sync-wave: "2"
+  {{- include "platform.meta" (list . "kyverno-custom-policies" "2") | nindent 2 }}
     argocd.argoproj.io/compare-options: ServerSideDiff=true
 spec:
   project: platform
