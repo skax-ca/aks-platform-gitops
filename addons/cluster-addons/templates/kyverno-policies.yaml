@@ -8,11 +8,11 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: {{ include "platform.name" . }}-kyverno-policies
+  name: {{ include "cluster-addons.name" . }}-kyverno-policies
   namespace: argocd
   finalizers:
     - resources-finalizer.argocd.argoproj.io
-  {{- include "platform.meta" (list . "kyverno-policies" "2") | nindent 2 }}
+  {{- include "cluster-addons.meta" (list . "kyverno-policies" "2") | nindent 2 }}
     # 엔진 쪽과 같은 원인으로 이것이 없으면 영구 OutOfSync 다. ValidatingPolicy 스키마의
     #    default(spec.evaluation.admission.enabled·spec.evaluation.background.enabled)를 apiserver 가
     #    채우고, 그 필드는 어느 매니저도 소유하지 않는다.
@@ -22,7 +22,7 @@ spec:
   source:
     repoURL: https://kyverno.github.io/kyverno/
     chart: kyverno-policies
-    targetRevision: {{ include "platform.staged" (list . "kyvernoPolicies") }}
+    targetRevision: {{ include "cluster-addons.staged" (list . "kyvernoPolicies") }}
     helm:
       parameters:
         # 차트 기본 Fail 에서 바꾼 유일한 값이다. failurePolicy 는 **웹훅에 닿지 못할 때** 무엇을
@@ -35,7 +35,7 @@ spec:
     # ⛔ validationActions 를 적지 않는다. 차트 기본값 Audit 이 우리가 원하는 값이고, 기본값을 옮겨
     #    적으면 차트를 올릴 때 그 줄이 조용히 낡는다.
   destination:
-    server: {{ include "platform.server" . }}
+    server: {{ include "cluster-addons.server" . }}
     namespace: kyverno
   syncPolicy:
     automated:
