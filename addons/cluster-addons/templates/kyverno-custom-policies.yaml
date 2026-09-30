@@ -8,11 +8,11 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: {{ include "platform.name" . }}-kyverno-custom-policies
+  name: {{ include "cluster-addons.name" . }}-kyverno-custom-policies
   namespace: argocd
   finalizers:
     - resources-finalizer.argocd.argoproj.io
-  {{- include "platform.meta" (list . "kyverno-custom-policies" "2") | nindent 2 }}
+  {{- include "cluster-addons.meta" (list . "kyverno-custom-policies" "2") | nindent 2 }}
     argocd.argoproj.io/compare-options: ServerSideDiff=true
 spec:
   project: platform
@@ -22,7 +22,7 @@ spec:
     targetRevision: {{ .Values.gitops.targetRevision }}
     path: addons/kyverno/custom-policies
   destination:
-    server: {{ include "platform.server" . }}
+    server: {{ include "cluster-addons.server" . }}
     namespace: kyverno
   syncPolicy:
     automated:

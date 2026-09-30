@@ -20,11 +20,11 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: {{ include "platform.name" . }}-karpenter-nodepool
+  name: {{ include "cluster-addons.name" . }}-karpenter-nodepool
   namespace: argocd
   finalizers:
     - resources-finalizer.argocd.argoproj.io
-  {{- include "platform.meta" (list . "karpenter-nodepool" "0") | nindent 2 }}
+  {{- include "cluster-addons.meta" (list . "karpenter-nodepool" "0") | nindent 2 }}
 spec:
   project: platform
   source:
@@ -32,7 +32,7 @@ spec:
     targetRevision: {{ .Values.gitops.targetRevision }}
     path: addons/karpenter/nodepool
   destination:
-    server: {{ include "platform.server" . }}
+    server: {{ include "cluster-addons.server" . }}
     namespace: kube-system
   syncPolicy:
     automated:

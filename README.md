@@ -42,8 +42,8 @@ bootstrap/    # App-of-Apps root(자기소멸/self-superseding) + ArgoCD 자기 
               #   + argocd-seed.sh(seed 실행 스크립트. 이 저장소가 소유한다)
 clusters/hub/aks-demo-hub-krc-main-01/  # cluster Secret
 projects/     # AppProject 가드레일 - platform.yaml
-applicationsets/platform.yaml # 클러스터마다 부모 Application을 만드는 ApplicationSet. root App이 읽는다
-addons/platform/           # 부모 차트. 그 클러스터의 addon Application 전부와 wave·버전 표. root App은 읽지 않는다
+applicationsets/cluster-addons.yaml # 클러스터마다 부모 Application을 만드는 ApplicationSet. root App이 읽는다
+addons/cluster-addons/           # 부모 차트. 그 클러스터의 addon Application 전부와 wave·버전 표. root App은 읽지 않는다
 addons/<addon>/            # addon Application의 source가 읽는 내용물. root App은 읽지 않는다
 addons/gateway/shared-gateway/  #   Gateway 매니페스트(컨트롤러는 AKS 관리형이라 GatewayClass도 없다)
 addons/karpenter/nodepool/      #   NAP의 NodePool/AKSNodeClass CR 매니페스트
@@ -79,8 +79,8 @@ per-cluster 값을 CR에 넣어야 하면 helm 차트여야 한다 — 부모 �
 
 ## 부모 Application — 클러스터마다 하나
 
-`applicationsets/platform.yaml`이 cluster Secret마다 부모 `<cluster>-platform`을 만들고, 부모가
-`addons/platform/` 차트로 그 클러스터의 addon Application을 렌더한다. 부모를 두는 이유는 순서다.
+`applicationsets/cluster-addons.yaml`이 cluster Secret마다 부모 `<cluster>-addons`를 만들고, 부모가
+`addons/cluster-addons/` 차트로 그 클러스터의 addon Application을 렌더한다. 부모를 두는 이유는 순서다.
 부모가 addon Application을 자기 리소스로 sync해야 sync-wave가 설치 순서(앞 wave가 Healthy가 된 뒤
 다음 wave)와 해제 순서(wave 역순, 삭제 완료 대기)가 된다. 설계 근거는 `iac-module-library`의
 `docs/architectures/gitops-hub-spoke/ordering.md`와 `azure/README.md`가 갖는다.
@@ -101,21 +101,21 @@ Job(`scale-to-zero`·`rm-webhooks`)이 NAP 노드가 살아 있을 때 끝난다
 | 항목 | 규약 |
 |---|---|
 | wave | addon Application의 `argocd.argoproj.io/sync-wave`. 기대는 addon보다 크게 둔다. 대기는 `bootstrap/argocd-values.yaml`의 Application health Lua가 있어야 선다. 없으면 wave가 생성 순서만 정한다 |
-| 식별 라벨 | addon Application에 `platform.addon`·`platform.cluster`·`platform.wave`, 부모에 `platform.cluster`. 이름의 `<cluster>-` 접두사가 콘솔에서 잘려 addon이 가려지므로 식별은 라벨로 한다(`kubectl -n argocd get applications -l platform.cluster=<cluster> -L platform.addon,platform.wave`, `argocd app list -l platform.addon=<addon>`). 라벨과 sync-wave 어노테이션은 `_helpers.tpl`의 `platform.meta` 하나가 찍는다. 트리 노드 태그는 `bootstrap/argocd-values.yaml`의 `resource.customLabels`가 띄운다 |
+| 식별 라벨 | addon Application에 `addon.name`·`addon.cluster`·`addon.wave`, 부모에 `addon.cluster`. 이름의 `<cluster>-` 접두사가 콘솔에서 잘려 addon이 가려지므로 식별은 라벨로 한다(`kubectl -n argocd get applications -l addon.cluster=<cluster> -L addon.name,addon.wave`, `argocd app list -l addon.name=<addon>`). 라벨과 sync-wave 어노테이션은 `_helpers.tpl`의 `cluster-addons.meta` 하나가 찍는다. 트리 노드 태그는 `bootstrap/argocd-values.yaml`의 `resource.customLabels`가 띄운다 |
 | `finalizers` | 부모와 addon Application 모두 `resources-finalizer.argocd.argoproj.io`를 둔다. 부모의 것이 해제 때 addon을 wave 역순으로 지우고, addon의 것이 클러스터 실물을 지운다 |
 | cluster-scoped CR | NodePool·AKSNodeClass·ValidatingPolicy는 cluster-scoped라 `destination.namespace`가 형식상 값이다 |
-| 부모 `prune: true` | opt-in 해지(라벨 제거)가 부모의 prune으로 이루어진다. ⚠️ 그래서 `addons/platform/templates/`에서 파일을 지우면 등록된 전 클러스터에서 그 addon이 지워진다 |
+| 부모 `prune: true` | opt-in 해지(라벨 제거)가 부모의 prune으로 이루어진다. ⚠️ 그래서 `addons/cluster-addons/templates/`에서 파일을 지우면 등록된 전 클러스터에서 그 addon이 지워진다 |
 
-⚠️ **돌고 있는 클러스터가 있을 때 ApplicationSet `platform`의 이름·selector나 addon 템플릿의
+⚠️ **돌고 있는 클러스터가 있을 때 ApplicationSet `cluster-addons`의 이름·selector나 addon 템플릿의
 `metadata.name`을 바꾸지 않는다.** 이름이 바뀌면 삭제로 처리되고, finalizer가 **실물까지 prune한다.**
 정리할 수 있는 시점은 전면 철거 이후 seed 이전뿐이다.
 
 ⚠️ **부모가 앞 wave를 기다리며 멈췄을 때**: 앞 wave의 addon이 Healthy가 되지 못하면 부모의 sync
 operation이 끝나지 않고, 그동안 버전 표를 고친 커밋이 addon Application에 반영되지 않는다. ArgoCD의
-sync 타임아웃 기본값이 무제한이라 스스로 풀리지 않는다. `argocd app terminate-op <cluster>-platform`으로
+sync 타임아웃 기본값이 무제한이라 스스로 풀리지 않는다. `argocd app terminate-op <cluster>-addons`로
 끊으면 다음 auto-sync가 새 커밋으로 돈다.
 
-### 버전 표 — `addons/platform/values.yaml`
+### 버전 표 — `addons/cluster-addons/values.yaml`
 
 승인된 버전은 이 표에만 있다. 템플릿은 `tier`로 줄을 고를 뿐 버전을 적지 않는다. staged addon은
 `versions.<addon>`에 `prd`·`nonprd` 두 줄을 나란히 둔다. 두 값이 다르면 승격이 진행 중이고, 같으면
@@ -130,7 +130,7 @@ sync 타임아웃 기본값이 무제한이라 스스로 풀리지 않는다. `a
 
 ## cluster Secret 라벨 계약
 
-ApplicationSet `platform`이 읽거나 부모 차트에 넘기는 라벨이다.
+ApplicationSet `cluster-addons`가 읽거나 부모 차트에 넘기는 라벨이다.
 
 | 라벨 | 읽는 쪽 | 값 | 빠지면 |
 |---|---|---|---|
