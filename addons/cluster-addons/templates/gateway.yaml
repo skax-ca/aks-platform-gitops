@@ -1,7 +1,7 @@
-# 공유 Gateway — wave 0(CR). Gateway 리소스 하나를 얹는다.
+# 공유 Gateway — wave 2(CR). Gateway 리소스 하나를 얹는다.
 #
-# wave 0 인 이유: 컨트롤러(istiod)·Gateway API CRD·GatewayClass 는 계층 1이 만들어 이 저장소 안에
-#    기댈 addon 이 없다. aks-reference-infra 의 live/hub/aks 가 클러스터의 ingressProfile 을 켜는 순간
+# wave 2 인 이유: 역할이 CR 이다. 컨트롤러(istiod)·Gateway API CRD·GatewayClass 는 계층 1이 만들어 이
+#    저장소 안에 기댈 addon 이 없다. aks-reference-infra 의 live/hub/aks 가 클러스터의 ingressProfile 을 켜는 순간
 #    전부 AKS 관리형으로 그 클러스터 안에 나타난다. App Routing 을 고른 근거는 설계 문서가 갖는다.
 # ⚠️ 그래서 이 Application 의 순서 의존은 wave 밖에 있다. Terraform apply 가 먼저 끝나야 한다. 그 전에
 #    sync 되면 Gateway 가 gatewayClassName 을 못 찾아 Accepted: False 로 멈춘다. 에러가 아니라 조용한
@@ -13,7 +13,7 @@ metadata:
   namespace: argocd
   finalizers:
     - resources-finalizer.argocd.argoproj.io
-  {{- include "cluster-addons.meta" (list . "gateway" "0") | nindent 2 }}
+  {{- include "cluster-addons.meta" (list . "gateway" "2") | nindent 2 }}
 spec:
   project: platform
   source:

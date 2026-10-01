@@ -85,22 +85,24 @@ per-cluster 값을 CR에 넣어야 하면 helm 차트여야 한다 — 부모 �
 다음 wave)와 해제 순서(wave 역순, 삭제 완료 대기)가 된다. 설계 근거는 `iac-module-library`의
 `docs/architectures/gitops-hub-spoke/ordering.md`와 `azure/README.md`가 갖는다.
 
+wave 번호는 역할에서 나온다(0 CRD · 1 컨트롤러 · 2 CR·정책). 같은 addon은 `eks-platform-gitops`와 같은
+wave에 선다. CRD는 계층 1 관리형이 소유해 wave 0이 비어 있다.
+
 | wave | addon | 기대는 것 |
 |:---:|---|---|
-| 0 | `karpenter-nodepool`(opt-in) · `gateway` | 컨트롤러와 CRD는 계층 1이 만든다(NAP · App Routing) |
-| 1 | `kyverno` | 파드가 뜰 NAP 노드. 시스템 풀 taint를 견디지 않는다 |
-| 2 | `kyverno-policies` · `kyverno-custom-policies` | 엔진 |
+| 0 | (없다) | – |
+| 1 | `kyverno` | 없다. 시스템 풀에 고정한다(`addons/kyverno/values.yaml`) |
+| 2 | `karpenter-nodepool`(opt-in) · `gateway` · `kyverno-policies` · `kyverno-custom-policies` | 정책은 엔진. NodePool·Gateway의 컨트롤러와 CRD는 계층 1이 만든다(NAP · App Routing) |
 
-🔑 **Kyverno가 NodePool 뒤에 오는 것이 이 저장소의 핵심이다.** 해제가 역순이라 Kyverno와 그 삭제 훅
-Job(`scale-to-zero`·`rm-webhooks`)이 NAP 노드가 살아 있을 때 끝난다. NodePool이 먼저 지워지면 그 Job이
-`Pending`에 걸려 kyverno Application이 `deletionTimestamp`를 낀 채 남는다. ⚠️ `addon-karpenter`를
-구독하지 않은 클러스터는 Kyverno가 뜰 노드가 없어 wave 1에서 멈춘다.
+🔑 **Kyverno는 시스템 풀에서 돈다.** 해제가 역순이라 NodePool이 엔진보다 먼저 지워지지만, 엔진과 삭제
+훅 Job(`scale-to-zero`·`rm-webhooks`)은 시스템 풀에 고정돼 있어 NAP 노드가 사라져도 막히지 않는다. 고정을
+풀면 엔진이 NAP 노드로 갈 수 있고, 앱이 없는 클러스터에서 NAP 노드가 엔진 하나를 위해 상시로 뜬다.
 
 매니페스트마다 반복하지 않고 여기 한 번 적는다. 개별 템플릿 주석은 그 파일에만 참인 것만 갖는다.
 
 | 항목 | 규약 |
 |---|---|
-| wave | addon Application의 `argocd.argoproj.io/sync-wave`. 기대는 addon보다 크게 둔다. 대기는 `bootstrap/argocd-values.yaml`의 Application health Lua가 있어야 선다. 없으면 wave가 생성 순서만 정한다 |
+| wave | addon Application의 `argocd.argoproj.io/sync-wave`. 번호는 역할에서 나온다(위 표). 대기는 `bootstrap/argocd-values.yaml`의 Application health Lua가 있어야 선다. 없으면 wave가 생성 순서만 정한다 |
 | 식별 라벨 | addon Application에 `addon.name`·`addon.cluster`·`addon.wave`, 부모에 `addon.cluster`. 이름의 `<cluster>-` 접두사가 콘솔에서 잘려 addon이 가려지므로 식별은 라벨로 한다(`kubectl -n argocd get applications -l addon.cluster=<cluster> -L addon.name,addon.wave`, `argocd app list -l addon.name=<addon>`). 라벨과 sync-wave 어노테이션은 `_helpers.tpl`의 `cluster-addons.meta` 하나가 찍는다. 트리 노드 태그는 `bootstrap/argocd-values.yaml`의 `resource.customLabels`가 띄운다 |
 | `finalizers` | 부모와 addon Application 모두 `resources-finalizer.argocd.argoproj.io`를 둔다. 부모의 것이 해제 때 addon을 wave 역순으로 지우고, addon의 것이 클러스터 실물을 지운다 |
 | cluster-scoped CR | NodePool·AKSNodeClass·ValidatingPolicy는 cluster-scoped라 `destination.namespace`가 형식상 값이다 |
@@ -136,13 +138,12 @@ ApplicationSet `cluster-addons`가 읽거나 부모 차트에 넘기는 라벨�
 |---|---|---|---|
 | `environment` | 부모 생성(존재) | `hub` · `dev` 등 | 부모가 생기지 않는다. 오류가 보고되지 않는다 |
 | `tier` | 버전 표의 줄 선택 | `prd` \| `nonprd` | 부모 렌더가 `required`로 실패한다 |
-| `addon-karpenter: enabled` | NodePool/AKSNodeClass 구독 | NAP을 켠 클러스터만 | NodePool이 빠지고 Kyverno가 뜰 노드가 없다 |
+| `addon-karpenter: enabled` | NodePool/AKSNodeClass 구독 | NAP을 켠 클러스터만 | NodePool이 빠져 NAP 노드가 생기지 않는다. 앱 파드가 뜰 곳이 없다 |
 
-⚠️ **teardown은 `environment` 라벨을 먼저 떼고, 부모가 hub에서 사라진 뒤 Secret을 지운다.** 라벨을
-떼면 부모가 지워지면서 addon을 wave 역순(정책 → Kyverno → NodePool·Gateway)으로 지운다. Secret을 먼저
-지우면 ArgoCD가 목적지를 잃어 spoke 리소스를 지우지 않고 기록만 버린다. 명령 순서는
-`aks-reference-infra`의 `spoke-lifecycle.md`가 갖는다. git 이력의 마지막 cluster-secret을 그대로
-되살리면 라벨이 빠진 껍데기이고, 그 상태로는 부모가 생기지 않는다.
+⚠️ **teardown은 `environment` 라벨만 떼고 Secret은 남긴다.** 라벨을 떼면 부모가 지워지면서 addon을
+wave 역순(NodePool·Gateway·정책 → Kyverno)으로 지운다. Secret을 지우면 ArgoCD가 목적지를 잃어 spoke
+리소스를 지우지 않고 기록만 버린다. 재구축 때는 남겨 둔 파일에서 접속 정보를 고치고 라벨을 되돌린다.
+명령 순서는 `aks-reference-infra`의 `spoke-lifecycle.md`가 갖는다.
 
 ## 게이트 — 로컬 훅과 CI
 
