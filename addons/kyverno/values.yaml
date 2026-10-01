@@ -1,0 +1,22 @@
+# Kyverno 엔진 차트 values — prd·nonprd 가 같은 파일을 읽는다
+#
+# 차트 기본값을 그대로 받고 스케줄 전제만 넘긴다. 기본값과 다른 것만 적는다.
+
+# 엔진을 시스템 풀에 고정한다. 시스템 풀의 CriticalAddonsOnly=true:NoSchedule 를 견디고(tolerations),
+#    AKS 가 시스템 풀 노드에 붙이는 라벨로 끌어당긴다(nodeSelector). toleration 은 허용일 뿐이라
+#    nodeSelector 없이는 NAP 노드가 생긴 뒤 그쪽으로 갈 수 있다.
+# 🔑 고정해야 wave 1(컨트롤러)이 wave 2 의 NodePool 에 기대지 않는다. 해제 때 NodePool 이 먼저 지워져도
+#    엔진과 삭제 훅 Job 이 시스템 풀에서 돈다. 앱이 없는 클러스터에서 NAP 노드가 엔진 하나를 위해 뜨지도
+#    않는다. 근거는 iac-module-library 의 docs/architectures/gitops-hub-spoke/azure/README.md 「노드 배치」.
+# global 은 컨트롤러 4종과 훅 Job(post-upgrade migrate-resources, pre-delete rm-webhooks·scale-to-zero)
+#    모두에 전파된다(차트 3.9.1 렌더로 확인). 차트를 올리면 훅까지 전파되는지 렌더로 다시 본다.
+# ⚠️ 시스템 풀은 오토스케일이 없다. 엔진 4종의 requests 합(CPU 400m·메모리 320Mi)이 그 여유 안에 있어야
+#    한다. replicas 를 올리면 aks-reference-infra 의 system_node_pool 크기를 함께 본다.
+global:
+  tolerations:
+    - key: CriticalAddonsOnly
+      operator: Equal
+      value: "true"
+      effect: NoSchedule
+  nodeSelector:
+    kubernetes.azure.com/mode: system
