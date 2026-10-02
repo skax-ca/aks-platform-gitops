@@ -91,14 +91,14 @@ configs:
 controller:
   serviceAccount:
     annotations:
-      azure.workload.identity/client-id: "f6a99fa5-ce37-4ff6-a0ee-902287ea60f6"
+      azure.workload.identity/client-id: "1bcd8a1b-f705-4ccf-a14a-50eed466b455"
   podLabels:
     azure.workload.identity/use: "true"
 
 server:
   serviceAccount:
     annotations:
-      azure.workload.identity/client-id: "f6a99fa5-ce37-4ff6-a0ee-902287ea60f6"
+      azure.workload.identity/client-id: "1bcd8a1b-f705-4ccf-a14a-50eed466b455"
   podLabels:
     azure.workload.identity/use: "true"
 
