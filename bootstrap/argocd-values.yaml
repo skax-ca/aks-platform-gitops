@@ -141,7 +141,7 @@ configs:
 controller:
   serviceAccount:
     annotations:
-      azure.workload.identity/client-id: "1bcd8a1b-f705-4ccf-a14a-50eed466b455"
+      azure.workload.identity/client-id: "4fc4f1ae-97a9-48c4-9e88-8657b19cb754"
   podLabels:
     azure.workload.identity/use: "true"
 
@@ -152,7 +152,7 @@ server:
     maxUnavailable: 1
   serviceAccount:
     annotations:
-      azure.workload.identity/client-id: "1bcd8a1b-f705-4ccf-a14a-50eed466b455"
+      azure.workload.identity/client-id: "4fc4f1ae-97a9-48c4-9e88-8657b19cb754"
   podLabels:
     azure.workload.identity/use: "true"
 
