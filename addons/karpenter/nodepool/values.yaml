@@ -1,0 +1,25 @@
+# ⚠️ tier 는 기본값이 없다. 부모 차트가 cluster Secret 의 tier 라벨을 주입한다
+#    (addons/cluster-addons/templates/karpenter-nodepool.yaml). 비어 있으면 템플릿이 required 로 실패한다.
+tier: ""
+
+# 티어별 disruption 차단. true 인 티어의 NodePool 은 떠 있는 노드를 스스로 갈아 끼우지 않는다. drift 로
+# 판정된 노드의 교체와, 더 싼 구성을 찾아 노드를 바꾸거나 합치는 consolidation 을 함께 막는다(budget 0).
+# 템플릿의 budgets 뒤에 한 줄로 더해진다.
+#
+# AKS 마이너 업그레이드에 쓴다. NAP 노드의 Kubernetes 버전은 컨트롤플레인을 따라가므로, 컨트롤플레인이
+# 올라가면 NodePool 을 고치지 않아도 기존 노드가 교체 대상이 된다. app 워크로드가 이 노드에 있어,
+# 컨트롤플레인과 시스템 풀을 확인할 때까지 그 교체를 미룬다. 절차는 aks-reference-infra `docs/upgrade.md` 가
+# 갖는다.
+#
+# 🔑 NAP 노드는 되돌릴 수 없다. 차단을 풀기 전이 app 워크로드를 옛 마이너의 kubelet 에 둘 수 있는 마지막
+#    지점이다.
+# consolidation 까지 막는 이유: 차단 중에 노드가 바뀌면 그 노드는 새 마이너로 뜬다.
+#
+# ⚠️ 빈 노드를 치우는 것(Empty)은 막지 않는다. 파드가 없는 노드라 워크로드가 움직이지 않는다.
+# ⚠️ 스케일 아웃으로 새로 뜨는 노드는 막을 수 없다.
+# ⚠️ true 인 동안에는 노드 이미지가 새로 나와도 그 티어의 노드가 교체되지 않는다. 이미지 갱신도 drift 다.
+# ⛔ true 인 채로 두지 않는다. 낡은 노드 이미지의 노드가 조용히 남고 노드가 합쳐지지 않아 비용이 쌓인다.
+#    두 줄이 false 인 것이 평소 상태다.
+disruptionBlockByTier:
+  prd: false
+  nonprd: false

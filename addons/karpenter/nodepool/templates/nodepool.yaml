@@ -1,3 +1,8 @@
+{{- $tier := required "tier 가 비어 있다 — cluster Secret 의 tier 라벨에서 온다" .Values.tier -}}
+{{- /* false 도 유효한 값이라 required 로 읽지 않는다. 키가 없는 것만 실패시킨다. */ -}}
+{{- if not (hasKey .Values.disruptionBlockByTier $tier) -}}
+{{- fail (printf "disruptionBlockByTier 에 tier %q 항목이 없다 — values.yaml 에 그 티어를 추가한다" $tier) -}}
+{{- end -}}
 apiVersion: karpenter.sh/v1
 kind: NodePool
 metadata:
@@ -19,6 +24,20 @@ spec:
   disruption:
     consolidationPolicy: WhenEmptyOrUnderutilized
     consolidateAfter: 30s
+    # 첫 줄(10%)은 Karpenter 기본값과 같은 값을 명시로 둔 것이다. budgets 를 하나라도 적으면 기본 budget 이
+    # 사라지므로, 이 줄이 없으면 차단 줄이 붙은 티어에서 나머지 사유가 무제한이 된다. 퍼센트는 올림이라
+    # 노드 10대 이하에서는 한 번에 1대다.
+    # disruption 차단이 켜진 티어에만 마지막 줄이 더해진다. 여러 budget 이 걸리면 Karpenter 는 가장 좁은
+    # 것을 따른다. Empty 는 사유에 넣지 않아 빈 노드는 계속 치워진다.
+    # ⚠️ 이 블록은 노드 템플릿이 아니다. 값을 바꿔도 떠 있는 노드가 교체되지 않고 이후의 판단에만 걸린다.
+    budgets:
+      - nodes: "10%"
+      {{- if index .Values.disruptionBlockByTier $tier }}
+      - nodes: "0"
+        reasons:
+          - Drifted
+          - Underutilized
+      {{- end }}
   template:
     metadata:
       labels:
