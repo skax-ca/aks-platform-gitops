@@ -9,10 +9,12 @@
 #    배포·운영하고, aks-reference-infra 의 live/hub/aks 가 enable_karpenter 하나로 켠다.
 # opt-in 인 이유: NAP 을 켜지 않은 클러스터에 이 CR 을 밀어넣으면 CRD 가 없어 sync 가 계속 실패로
 #    남는다. cluster Secret 의 addon-karpenter 라벨이 이 조건의 짝이다.
-# 평문 매니페스트인 이유: AKSNodeClass 에는 주입할 per-cluster 값이 없다. 네트워킹은 클러스터의
+# 로컬 helm 차트인 이유: tier 를 차트에 넘겨 values 안에서 티어별 값을 고른다. disruption 차단이 그
+#    경로를 쓴다. AKSNodeClass 에는 주입할 per-cluster 값이 없다 — 네트워킹은 클러스터의
 #    node_provisioning_profile 이 소유한 VNet 통합에서 자동 상속된다.
+# ⛔ 티어로 쪼개지 않는다. targetRevision 이 이 저장소 자신이라 두 벌로 나눠도 둘 다 main 을 가리킨다.
 # ⚠️ 이 클러스터는 데이터 플레인이 Cilium 이라, 새 노드에 Cilium daemonset 이 붙기 전에는
-#    워크로드를 스케줄하면 안 된다. 그 startupTaint 는 addons/karpenter/nodepool/nodepool.yaml 이 건다.
+#    워크로드를 스케줄하면 안 된다. 그 startupTaint 는 addons/karpenter/nodepool/templates/nodepool.yaml 이 건다.
 # Terraform 전제: NAP 은 overlay CNI·workload identity·시스템 노드풀 오토스케일 해제를 함께 요구한다.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -28,6 +30,11 @@ spec:
     repoURL: {{ .Values.gitops.repoURL }}
     targetRevision: {{ .Values.gitops.targetRevision }}
     path: addons/karpenter/nodepool
+    helm:
+      parameters:
+        # 차트가 티어별 값(disruption 차단)을 이 값으로 고른다.
+        - name: tier
+          value: {{ .Values.cluster.tier }}
   destination:
     server: {{ include "cluster-addons.server" . }}
     namespace: kube-system

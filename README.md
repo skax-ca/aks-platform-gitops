@@ -46,7 +46,7 @@ applicationsets/cluster-addons.yaml # 클러스터마다 부모 Application을 �
 addons/cluster-addons/           # 부모 차트. 그 클러스터의 addon Application 전부와 wave·버전 표. root App은 읽지 않는다
 addons/<addon>/            # addon Application의 source가 읽는 내용물. root App은 읽지 않는다
 addons/gateway/shared-gateway/  #   Gateway 매니페스트(컨트롤러는 AKS 관리형이라 GatewayClass도 없다)
-addons/karpenter/nodepool/      #   NAP의 NodePool/AKSNodeClass CR 매니페스트
+addons/karpenter/nodepool/      #   NAP의 NodePool/AKSNodeClass CR. 로컬 helm 차트(티어별 disruption 차단)
 addons/kyverno/custom-policies/ #   이 저장소가 소유하는 ValidatingPolicy 매니페스트
 scripts/          # 주석 규칙 검사기(.py다 - 아래 "게이트" 절 참고)
 scripts/include-check/ # root App include 판정(Go, 별도 모듈). CI 전용
@@ -73,9 +73,10 @@ Application이 따로 읽는다), helm values(`bootstrap/argocd-values.yaml`), �
 커밋이 풀거나, `argocd-seed.sh`의 root Application 단계만 다시 돌려 커밋본 `root-app.yaml`을 손으로 다시 apply한다.
 
 `addons/<addon>/<dir>/`는 값을 주입할 일이 없으면 평문 매니페스트 디렉토리다. 이 저장소의
-셋(`gateway/shared-gateway`·`karpenter/nodepool`·`kyverno/custom-policies`)이 전부 그렇다.
-per-cluster 값을 CR에 넣어야 하면 helm 차트여야 한다 — 부모 차트는 addon Application spec에 값을
-적을 수 있지만 평문 디렉토리 source는 파일 안의 값을 치환하지 않기 때문이다.
+둘(`gateway/shared-gateway`·`kyverno/custom-policies`)이 그렇다. 클러스터마다 다른 값을 CR에 넣어야
+하면 helm 차트여야 한다 — 부모 차트는 addon Application spec에 값을 적을 수 있지만 평문 디렉토리
+source는 파일 안의 값을 치환하지 않기 때문이다. `karpenter/nodepool`이 차트다. 부모가 `tier`를 넘기고
+차트의 `disruptionBlockByTier`가 그 티어의 줄을 고른다.
 
 ## 부모 Application — 클러스터마다 하나
 
@@ -178,7 +179,8 @@ staged된 `.sh`에는 `bash -n`(문법)과 `shellcheck -x`(인용·확장·종�
 `verify.yml`은 훅과 같은 검사(주석 규칙·`bash -n`·`shellcheck -x`, 버전을 로컬과 같게 핀)에
 네 가지를 더한다. **YAML 전체 파싱**, **root App `include` 판정**(아래), **부모 차트 `helm lint`·`helm template`**(`required` 값은
 ApplicationSet이 cluster Secret 라벨에서 주입하는 것이라 대표값을 `--set`으로 준다. 두 티어 × NAP
-구독 유무를 모두 렌더하고, 없는 `tier`가 렌더 실패가 되는지 본다), **`kyverno test`**(`tests/kyverno/`의 픽스처로 커스텀
+구독 유무를 모두 렌더하고, 없는 `tier`가 렌더 실패가 되는지 본다. NodePool 차트도 두 티어로 렌더해
+disruption 차단을 켠 티어에만 차단 줄이 붙는지 본다), **`kyverno test`**(`tests/kyverno/`의 픽스처로 커스텀
 정책의 통과·거부·제외를 판정한다. 제외 조건 셋 — `control-plane` 라벨·`managedby=aks`·argocd —
 이 각각 `Excluded`로 떨어지는지가 픽스처에 있다. CLI 버전은 kyverno 차트의 appVersion과 같아야
 한다). 픽스처는 어떤 Application의
