@@ -22,4 +22,4 @@ tier: ""
 #    두 줄이 false 인 것이 평소 상태다.
 disruptionBlockByTier:
   prd: false
-  nonprd: false
+  nonprd: true
