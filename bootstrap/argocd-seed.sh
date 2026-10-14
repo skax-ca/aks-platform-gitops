@@ -151,6 +151,14 @@ if (( ! DRY_RUN )); then
   kubectl cluster-info >/dev/null 2>&1 \
     || die "클러스터에 닿지 않는다. workbench에서 실행 중인지, kubeconfig가 맞는지 확인하라"
   ok "클러스터 도달 · context=$(kubectl config current-context)"
+
+  # ArgoCD 의 redis-ha 가 redis 3개와 haproxy 3개를 서로 다른 노드에 둔다. 시스템 풀이 3대보다 적으면
+  # 세 번째 파드가 Pending 으로 남아 helm install 이 --wait 의 timeout 까지 기다리다 실패한다. 그 10분을
+  # 쓰기 전에 여기서 멈춘다.
+  system_nodes=$(kubectl get nodes -l kubernetes.azure.com/mode=system --no-headers 2>/dev/null | grep -cw Ready || true)
+  (( system_nodes >= 3 )) \
+    || die "Ready 인 시스템 풀 노드가 ${system_nodes}대다. ArgoCD 의 redis-ha 가 3대를 요구한다(hub 의 system_node_pool.node_count)"
+  ok "시스템 풀 노드 ${system_nodes}대"
 fi
 
 if (( DRY_RUN )); then
