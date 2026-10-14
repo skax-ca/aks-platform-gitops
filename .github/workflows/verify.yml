@@ -131,16 +131,16 @@ jobs:
           chart=addons/karpenter/nodepool
           for tier in prd nonprd; do
             helm lint "$chart" --set "tier=$tier" --quiet
-            # 평소 상태(차단 false)에는 Drifted 를 막는 줄이 없어야 한다. 남아 있으면 그 티어의 노드가
-            # 조용히 낡는다.
-            if helm template t "$chart" --set "tier=$tier" | grep -q 'Drifted'; then
-              echo "tier=$tier: 차단이 꺼져 있는데 Drifted 를 막는 줄이 렌더됐다"; exit 1
+            # 스위치를 --set 으로 직접 준다. 커밋된 값에 기대면 업그레이드 도중 한 티어를 true 로 올리는
+            # 커밋이 이 검사에서 막힌다.
+            if helm template t "$chart" --set "tier=$tier,disruptionBlockByTier.$tier=false" | grep -q 'Drifted'; then
+              echo "tier=$tier: 차단을 껐는데 Drifted 를 막는 줄이 렌더됐다"; exit 1
             fi
             helm template t "$chart" --set "tier=$tier,disruptionBlockByTier.$tier=true" | grep -q 'Drifted' \
               || { echo "tier=$tier: 차단을 켰는데 Drifted 를 막는 줄이 없다"; exit 1; }
           done
           # 한 티어의 차단이 다른 티어로 새지 않는지 본다.
-          if helm template t "$chart" --set "tier=prd,disruptionBlockByTier.nonprd=true" | grep -q 'Drifted'; then
+          if helm template t "$chart" --set "tier=prd,disruptionBlockByTier.prd=false,disruptionBlockByTier.nonprd=true" | grep -q 'Drifted'; then
             echo "nonprd 의 차단이 prd 렌더에 붙었다"; exit 1
           fi
           if helm template t "$chart" --set "tier=prod" >/dev/null 2>&1; then
