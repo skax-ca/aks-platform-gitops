@@ -10,4 +10,6 @@ metadata:
       Azure AKSNodeClass에는 없다(github.com/Azure/karpenter-provider-azure
       examples/v1/general-purpose.yaml 공식 예제로 확인, spec은 imageFamily 하나뿐).
 spec:
-  imageFamily: Ubuntu
+  # 시스템 풀(aks-cluster 모듈의 os_sku 기본값)과 같은 OS로 맞춘다. 이 값은 모듈을 따라가지
+  # 않으므로 한쪽을 바꾸면 다른 쪽도 바꾼다. 바꾸면 기존 NAP 노드가 drift로 교체된다.
+  imageFamily: AzureLinux
